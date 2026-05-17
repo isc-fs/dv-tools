@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Convert a Hesai LiDAR .pcap capture into an MCAP bag that opens directly in
-# Lichtblick / Foxglove (the IFSSIM repo ships lichtblick/hesai_pcap_replay.json
-# as a starter layout for the resulting bag).
+# Lichtblick / Foxglove (see ./lichtblick/hesai_pcap_replay.json for a starter
+# layout tuned for the resulting bag).
 #
 # Why this exists:
 #   A raw Hesai pcap is just UDP packets — no MCAP reader understands the
@@ -101,4 +101,4 @@ docker run --rm \
 echo
 echo "[hesai-pcap2mcap] done. Bag: $OUT_HOST_DIR/"
 echo "Open in Lichtblick with the layout at:"
-echo "  https://github.com/isc-fs/IFSSIM/blob/dev/lichtblick/hesai_pcap_replay.json"
+echo "  $HERE/lichtblick/hesai_pcap_replay.json"

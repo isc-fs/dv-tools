@@ -1,0 +1,190 @@
+{
+  "configById": {
+    "3D!main": {
+      "cameraState": {
+        "distance": 25,
+        "perspective": true,
+        "phi": 65,
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "targetOffset": [
+          0,
+          0,
+          0
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "thetaOffset": 0,
+        "fovy": 0.7,
+        "near": 0.5,
+        "far": 5000
+      },
+      "followTf": "hesai_lidar",
+      "followMode": "follow-position",
+      "scene": {
+        "syncCamera": false,
+        "transforms": {
+          "showAxes": true,
+          "showLabels": false,
+          "axisScale": 1.0
+        },
+        "background": {
+          "color": "#0a0a14"
+        }
+      },
+      "transforms": {
+        "frame:hesai_lidar": {
+          "visible": true
+        }
+      },
+      "topics": {
+        "/lidar_points": {
+          "visible": true,
+          "colorField": "intensity",
+          "colorMode": "colormap",
+          "colorMap": "turbo",
+          "minValue": 0.0,
+          "maxValue": 100.0,
+          "pointSize": 2,
+          "pointShape": "circle",
+          "decayTime": 0
+        }
+      },
+      "publish": {
+        "type": "point",
+        "poseTopic": "/move_base_simple/goal",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26
+      }
+    },
+    "3D!topdown": {
+      "cameraState": {
+        "distance": 80,
+        "perspective": false,
+        "phi": 0,
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "targetOffset": [
+          0,
+          0,
+          0
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "thetaOffset": 0,
+        "fovy": 45,
+        "near": 0.5,
+        "far": 5000
+      },
+      "followTf": "hesai_lidar",
+      "followMode": "follow-none",
+      "scene": {
+        "syncCamera": false,
+        "transforms": {
+          "showAxes": true,
+          "showLabels": false,
+          "axisScale": 1.5
+        },
+        "background": {
+          "color": "#0a0a14"
+        }
+      },
+      "transforms": {
+        "frame:hesai_lidar": {
+          "visible": true
+        }
+      },
+      "topics": {
+        "/lidar_points": {
+          "visible": true,
+          "colorField": "z",
+          "colorMode": "colormap",
+          "colorMap": "turbo",
+          "minValue": -1.0,
+          "maxValue": 2.0,
+          "pointSize": 1,
+          "pointShape": "circle",
+          "decayTime": 0
+        }
+      }
+    },
+    "Plot!packet_loss": {
+      "title": "Packet loss (cumulative count vs lost) — should grow gently, large jumps = dropped frames",
+      "isSynced": true,
+      "legendDisplay": "floating",
+      "showLegend": true,
+      "showPlotValuesInLegend": true,
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "xAxisVal": "timestamp",
+      "minYValue": 0,
+      "paths": [
+        {
+          "value": "/lidar_packets_loss.total_packet_count",
+          "enabled": true,
+          "label": "expected packets (cum)",
+          "color": "#4488ff",
+          "lineSize": 1.5,
+          "timestampMethod": "receiveTime",
+          "showLine": true
+        },
+        {
+          "value": "/lidar_packets_loss.total_packet_loss_count",
+          "enabled": true,
+          "label": "lost packets (cum)",
+          "color": "#ff4444",
+          "lineSize": 2.0,
+          "timestampMethod": "receiveTime",
+          "showLine": true
+        }
+      ],
+      "sidebarDimension": 220
+    },
+    "RawMessages!cloud_info": {
+      "topicPath": "/lidar_points.header",
+      "diffEnabled": false,
+      "diffMethod": "custom",
+      "diffTopicPath": "",
+      "showFullMessageForDiff": false,
+      "fontSize": 12
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "playbackConfig": {
+    "speed": 1
+  },
+  "layout": {
+    "direction": "row",
+    "first": "3D!main",
+    "second": {
+      "direction": "column",
+      "first": "3D!topdown",
+      "second": {
+        "direction": "column",
+        "first": "Plot!packet_loss",
+        "second": "RawMessages!cloud_info",
+        "splitPercentage": 65
+      },
+      "splitPercentage": 50
+    },
+    "splitPercentage": 60
+  }
+}

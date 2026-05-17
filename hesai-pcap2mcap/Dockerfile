@@ -50,6 +50,14 @@ RUN git clone --depth 1 --recurse-submodules \
 RUN mkdir -p /opt/hesai && \
     cp -r /ws/src/hesai_ros_driver/src/driver/HesaiLidar_SDK_2.0/correction /opt/hesai/
 
+# Synthesised ATX_S01 angle correction file (v3 format, 116 channels) — built
+# from the design values in Appendix A.1.1 of the ATX_S01 user manual. The
+# SDK ships only a generic 100-channel ATX V42 file, which silently
+# mis-decodes the 116-channel ATX_S01 packet (every laser ends up at the
+# wrong elevation). For a per-unit calibration, fetch the .dat from the
+# sensor via PTC command 0x05 or PandarView 2 and override CORR_FILE.
+COPY correction/ATX_S01_design_values.dat /opt/hesai/correction/angle_correction/
+
 WORKDIR /ws
 # Plain (non-symlink) install: the driver bakes PROJECT_PATH at compile time
 # and looks for config.yaml under the source tree, so we must keep /ws/src

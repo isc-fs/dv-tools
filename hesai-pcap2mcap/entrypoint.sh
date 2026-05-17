@@ -33,7 +33,12 @@ set -u
 PCAP="${PCAP:-/data/in.pcap}"
 OUT_DIR="${OUT_DIR:-/data/out_mcap}"
 RECORD_SECONDS="${RECORD_SECONDS:-100}"
-CORR_FILE="${CORR_FILE:-/opt/hesai/correction/angle_correction/ATX_Angle_Correction_File_V42.dat}"
+# Default to the synthesised ATX_S01 file (116 channels, v3 format, built from
+# Appendix A.1.1 of the ATX_S01 user manual). For other Hesai models, override
+# with one of the SDK-shipped files under /opt/hesai/correction/angle_correction/.
+# For per-unit accuracy on an ATX_S01, mount the factory .dat (PTC command 0x05
+# or PandarView 2 export) and point here.
+CORR_FILE="${CORR_FILE:-/opt/hesai/correction/angle_correction/ATX_S01_design_values.dat}"
 FIRE_FILE="${FIRE_FILE:-/opt/hesai/correction/firetime_correction/ATX_Firetime Correction File.csv}"
 LIDAR_PORT="${LIDAR_PORT:-2368}"
 FRAME_ID="${FRAME_ID:-hesai_lidar}"

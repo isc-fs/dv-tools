@@ -9,3 +9,6 @@ __pycache__/
 *.pcap
 *.bag
 *.db3
+
+# Vendor manuals / datasheets — copyrighted, keep local-only.
+*.pdf

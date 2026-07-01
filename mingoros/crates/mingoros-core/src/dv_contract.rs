@@ -273,6 +273,28 @@ pub const TOPIC_SLAM_POSE: &str = "/slam/pose"; // nav_msgs/Odometry
 pub const TOPIC_ODOM: &str = "/odom"; // nav_msgs/Odometry
 pub const TOPIC_PATH: &str = "/Path"; // nav_msgs/Path
 
+// ---------------------------------------------------------------------------
+// IFSSIM / sim-pipeline surface — the MingoROS ros2 test bed.
+//
+// IFSSIM vendors an OLDER pipeline than the uDV stock interface above: it has
+// NO /dv/status, /assi/state, /ami/mission, /force_ebs. These are what the
+// IFSSIM bag replay + live pipeline actually publish (confirmed live via
+// `ros2 topic info -v`). Shared with the car: /Conos*, /odom, /Path,
+// /slam/pose. Sim-specific below. See [[project_mingoros]] IFSSIM notes.
+// ---------------------------------------------------------------------------
+pub const TOPIC_SIM_IMU: &str = "/imu"; // sensor_msgs/Imu (car uses /imu/data_raw)
+pub const TOPIC_SIM_LIDAR: &str = "/lidar/Lidar1"; // sensor_msgs/PointCloud2
+pub const TOPIC_TESTING_TRACK: &str = "/testing_only/track"; // fs_msgs/Track — RELIABLE/TRANSIENT_LOCAL (latched)
+pub const TOPIC_TESTING_ODOM: &str = "/testing_only/odom"; // nav_msgs/Odometry (ground truth, best-effort)
+pub const TOPIC_CONE_SLAM_GT_ERROR: &str = "/cone_slam/gt_error_m"; // std_msgs/Float32 (SLAM accuracy diag)
+pub const TOPIC_CTRL_V_SET: &str = "/control/v_set_mps"; // std_msgs/Float32
+pub const TOPIC_CTRL_KAPPA_MAX: &str = "/control/kappa_max_per_m"; // std_msgs/Float32
+pub const TOPIC_CTRL_CMD_INTERNAL: &str = "/ctrl/cmd_internal"; // fs_msgs/ControlCommand
+pub const TOPIC_CTRL_EMERGENCY: &str = "/ctrl/emergency"; // std_msgs/Bool — latched
+pub const TOPIC_SIGNAL_EBS: &str = "/signal/ebs"; // std_msgs/Empty — latched
+pub const TOPIC_SIGNAL_GO: &str = "/signal/go"; // fs_msgs/GoSignal
+pub const TOPIC_SLAM_FINISHED: &str = "/slam/finished"; // std_msgs/Bool — latched
+
 /// Minimum heartbeat cadence for the byte topics (`/assi/state`,
 /// `/dv/status`): each is the other side's liveness signal. A staler stream
 /// is treated as a fault by the reconciler.
@@ -339,6 +361,7 @@ impl Qos {
 /// the ROS default and log it — an unknown topic's QoS is a discovery task).
 pub fn recommended_qos(topic: &str) -> Option<Qos> {
     let q = match topic {
+        // --- car (uDV stock) surface ---
         TOPIC_DV_STATUS => Qos::latched(1),
         TOPIC_ASSI_STATE | TOPIC_AMI_MISSION => Qos::reliable(10),
         TOPIC_CTRL_CMD => Qos::sensor(10),
@@ -346,6 +369,18 @@ pub fn recommended_qos(topic: &str) -> Option<Qos> {
         TOPIC_LIDAR => Qos::sensor(5),
         TOPIC_CONES_RAW | TOPIC_CONES_ORANGE | TOPIC_CONES | TOPIC_CONES_FULL => Qos::reliable(10),
         TOPIC_SLAM_POSE | TOPIC_ODOM | TOPIC_PATH => Qos::reliable(10),
+        // --- IFSSIM / sim surface (confirmed live via `ros2 topic info -v`) ---
+        TOPIC_TESTING_TRACK | TOPIC_CTRL_EMERGENCY | TOPIC_SIGNAL_EBS | TOPIC_SLAM_FINISHED => {
+            Qos::latched(1)
+        }
+        TOPIC_CONE_SLAM_GT_ERROR
+        | TOPIC_CTRL_V_SET
+        | TOPIC_CTRL_KAPPA_MAX
+        | TOPIC_CTRL_CMD_INTERNAL
+        | TOPIC_SIGNAL_GO => Qos::reliable(10),
+        TOPIC_SIM_IMU | TOPIC_SIM_LIDAR | TOPIC_MOTOR_RPM | TOPIC_STEERING | TOPIC_TESTING_ODOM => {
+            Qos::sensor(10)
+        }
         _ => return None,
     };
     Some(q)

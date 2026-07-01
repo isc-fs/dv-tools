@@ -1,0 +1,253 @@
+//! The `ros2` transport backend — pure-Rust DDS via `ros2-client` / RustDDS.
+//!
+//! Talks RTPS/DDS over UDP and interoperates with the pipeline's default
+//! `rmw_fastrtps`. No ROS install required. This is the transport MingoROS
+//! actually uses inside the DV pipeline (Linux/Pi); on the IFSSIM bench it
+//! runs in a Linux container joined to the pipeline's DDS domain.
+//!
+//! Read-only by design for now: publishing onto a safety-critical graph is
+//! gated behind the actuation safety gate + a later, deliberate feature.
+
+use super::{RosClient, RosError, Sample, SampleStream, TopicInfo};
+use crate::{dv_contract, msgs};
+use ros2_client::ros2::{policy, Duration as DdsDuration, QosPolicies, QosPolicyBuilder};
+use ros2_client::{Context, MessageTypeName, Name, Node, NodeName, NodeOptions};
+use serde::de::DeserializeOwned;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+
+/// How long `next_sample()` waits for a message before giving up (so `echo`
+/// on a silent topic returns instead of hanging forever). Generous enough to
+/// cover a late-join TRANSIENT_LOCAL durability handshake.
+const RECV_TIMEOUT: Duration = Duration::from_secs(20);
+/// Poll interval while waiting on the (non-blocking) DDS reader.
+const POLL: Duration = Duration::from_millis(20);
+/// Discovery settle time after node creation before topics are enumerable.
+const DISCOVERY_SETTLE: Duration = Duration::from_secs(3);
+
+pub struct Ros2Client {
+    node: Mutex<Node>,
+    context: Context,
+}
+
+impl Ros2Client {
+    /// Join the DDS graph. Domain id comes from `ROS_DOMAIN_ID` (default 0),
+    /// matching the pipeline. Spawns the node spinner (required for the
+    /// reliability / durability handshakes and to drain node events) on a
+    /// background thread, then blocks briefly to let discovery settle.
+    pub fn new() -> Result<Self, RosError> {
+        let context =
+            Context::new().map_err(|e| RosError::Other(format!("DDS context init: {e:?}")))?;
+        let mut node = context
+            .new_node(
+                NodeName::new("/mingoros", "mingoros")
+                    .map_err(|e| RosError::Other(format!("node name: {e:?}")))?,
+                NodeOptions::new().enable_rosout(false),
+            )
+            .map_err(|e| RosError::Other(format!("create node: {e:?}")))?;
+
+        // The spinner drives ROS-graph housekeeping and, crucially, lets the
+        // DDS readers complete reliable/TRANSIENT_LOCAL exchanges. Run it on a
+        // detached thread for the life of the process.
+        let spinner = node
+            .spinner()
+            .map_err(|e| RosError::Other(format!("spinner: {e:?}")))?;
+        std::thread::spawn(move || {
+            let _ = futures::executor::block_on(spinner.spin());
+        });
+
+        std::thread::sleep(DISCOVERY_SETTLE);
+        Ok(Self {
+            node: Mutex::new(node),
+            context,
+        })
+    }
+
+    fn subscribe_typed<T>(
+        &self,
+        topic: &str,
+        pkg: &str,
+        ty: &str,
+        qos: QosPolicies,
+        fmt: fn(&T) -> String,
+    ) -> Result<Box<dyn SampleStream>, RosError>
+    where
+        T: 'static + Send + DeserializeOwned,
+    {
+        let mut node = self.node.lock().unwrap();
+        let name =
+            Name::parse(topic).map_err(|e| RosError::Other(format!("bad topic {topic}: {e:?}")))?;
+        let ros_topic = node
+            .create_topic(&name, MessageTypeName::new(pkg, ty), &qos)
+            .map_err(|e| RosError::Other(format!("create_topic {topic}: {e:?}")))?;
+        let sub = node
+            .create_subscription::<T>(&ros_topic, Some(qos))
+            .map_err(|e| RosError::Other(format!("subscribe {topic}: {e:?}")))?;
+        Ok(Box::new(Ros2Stream {
+            sub,
+            fmt,
+            topic: topic.to_string(),
+            type_name: format!("{pkg}/msg/{ty}"),
+            seq: 0,
+            start: Instant::now(),
+        }))
+    }
+}
+
+impl RosClient for Ros2Client {
+    fn backend_name(&self) -> &'static str {
+        "ros2"
+    }
+
+    fn list_topics(&self) -> Result<Vec<TopicInfo>, RosError> {
+        let mut seen = std::collections::BTreeMap::new();
+        for dt in self.context.discovered_topics() {
+            let raw = dt.topic_name();
+            // DDS→ROS: user topics are published as "rt/<name>".
+            let name = raw
+                .strip_prefix("rt")
+                .map(str::to_string)
+                .unwrap_or_else(|| raw.clone());
+            if name.starts_with("ros_discovery_info") || name.is_empty() {
+                continue;
+            }
+            let type_name = demangle_type(dt.type_name());
+            seen.entry(name.clone()).or_insert(TopicInfo {
+                qos: dv_contract::recommended_qos(&name),
+                note: None,
+                name,
+                type_name,
+            });
+        }
+        Ok(seen.into_values().collect())
+    }
+
+    fn subscribe(&self, topic: &str) -> Result<Box<dyn SampleStream>, RosError> {
+        match topic {
+            // Reliable/volatile small scalars (SLAM diag, control setpoints).
+            dv_contract::TOPIC_CONE_SLAM_GT_ERROR
+            | dv_contract::TOPIC_CTRL_V_SET
+            | dv_contract::TOPIC_CTRL_KAPPA_MAX => self.subscribe_typed::<msgs::Float32>(
+                topic,
+                "std_msgs",
+                "Float32",
+                qos_reliable_volatile(),
+                |m| format!("data: {:.4}", m.data),
+            ),
+            // Best-effort high-rate scalars (sim sensor feeds).
+            dv_contract::TOPIC_MOTOR_RPM | dv_contract::TOPIC_STEERING => self
+                .subscribe_typed::<msgs::Float32>(
+                    topic,
+                    "std_msgs",
+                    "Float32",
+                    qos_best_effort(),
+                    |m| format!("data: {:.4}", m.data),
+                ),
+            // THE latched (RELIABLE/TRANSIENT_LOCAL) durability target.
+            dv_contract::TOPIC_TESTING_TRACK => {
+                self.subscribe_typed::<msgs::Track>(topic, "fs_msgs", "Track", qos_latched(), |m| {
+                    format!("Track: {} cones (latched)", m.track.len())
+                })
+            }
+            // Latched std_msgs/Bool topics (+ a bench test topic) — the
+            // TRANSIENT_LOCAL durability proof against a retaining writer.
+            dv_contract::TOPIC_CTRL_EMERGENCY
+            | dv_contract::TOPIC_SLAM_FINISHED
+            | "/mingoros_latch" => {
+                self.subscribe_typed::<msgs::Bool>(topic, "std_msgs", "Bool", qos_latched(), |m| {
+                    format!("data: {} (latched)", m.data)
+                })
+            }
+            other => Err(RosError::Other(format!(
+                "ros2 backend does not yet decode {other} — the QoS spike decodes \
+                 std_msgs/Float32 topics and the latched fs_msgs/Track. \
+                 (MarkerArray / full type coverage is follow-up work.)"
+            ))),
+        }
+    }
+
+    fn publish(&self, _topic: &str, _value: &str) -> Result<(), RosError> {
+        Err(RosError::Other(
+            "ros2 backend is read-only for now — publishing onto a live DDS graph \
+             is a later, deliberately-gated feature (see the actuation safety gate)"
+                .to_string(),
+        ))
+    }
+}
+
+struct Ros2Stream<T> {
+    sub: ros2_client::Subscription<T>,
+    fmt: fn(&T) -> String,
+    topic: String,
+    type_name: String,
+    seq: u64,
+    start: Instant,
+}
+
+impl<T: 'static + Send + DeserializeOwned> SampleStream for Ros2Stream<T> {
+    fn next_sample(&mut self) -> Option<Sample> {
+        let deadline = Instant::now() + RECV_TIMEOUT;
+        loop {
+            match self.sub.take() {
+                Ok(Some((msg, _info))) => {
+                    let seq = self.seq;
+                    self.seq += 1;
+                    return Some(Sample {
+                        topic: self.topic.clone(),
+                        type_name: self.type_name.clone(),
+                        seq,
+                        t_ms: self.start.elapsed().as_millis(),
+                        summary: (self.fmt)(&msg),
+                    });
+                }
+                Ok(None) => {
+                    if Instant::now() >= deadline {
+                        return None;
+                    }
+                    std::thread::sleep(POLL);
+                }
+                Err(e) => {
+                    tracing::warn!(topic = %self.topic, "take error: {e:?}");
+                    return None;
+                }
+            }
+        }
+    }
+}
+
+fn qos_reliable_volatile() -> QosPolicies {
+    QosPolicyBuilder::new()
+        .history(policy::History::KeepLast { depth: 10 })
+        .reliability(policy::Reliability::Reliable {
+            max_blocking_time: DdsDuration::from_millis(100),
+        })
+        .durability(policy::Durability::Volatile)
+        .build()
+}
+
+fn qos_best_effort() -> QosPolicies {
+    QosPolicyBuilder::new()
+        .history(policy::History::KeepLast { depth: 10 })
+        .reliability(policy::Reliability::BestEffort)
+        .durability(policy::Durability::Volatile)
+        .build()
+}
+
+/// RELIABLE + TRANSIENT_LOCAL — the latched profile a late joiner needs to
+/// still receive the last retained sample of (`/testing_only/track`,
+/// `/dv/status`, `/ctrl/emergency`).
+fn qos_latched() -> QosPolicies {
+    QosPolicyBuilder::new()
+        .history(policy::History::KeepLast { depth: 1 })
+        .reliability(policy::Reliability::Reliable {
+            max_blocking_time: DdsDuration::from_millis(100),
+        })
+        .durability(policy::Durability::TransientLocal)
+        .build()
+}
+
+/// DDS type name → ROS type name: `fs_msgs::msg::dds_::Track_` → `fs_msgs/msg/Track`.
+fn demangle_type(dds: &str) -> String {
+    let s = dds.replace("::dds_::", "::").replace("::", "/");
+    s.strip_suffix('_').unwrap_or(&s).to_string()
+}

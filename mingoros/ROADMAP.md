@@ -21,15 +21,22 @@ debugging only**; raw CAN stays MingoCAN's job.
 - [x] CLI: `topics`, `echo`, `hz`, `pub` (with the actuation safety gate);
       `bag`/`adapters`/`monitor` stubbed with roadmap pointers.
 
-### Phase 2 — Car-capable ROS transport  (`feat/2`) — the biggest bet
-- [ ] **QoS-validation spike first, with a kill-criterion:** prove
-      `ros2-client`/RustDDS can subscribe to the **latched** (`TRANSIENT_LOCAL`)
-      `/dv/status` and the **reliable** `/Conos` `MarkerArray` on a
-      car-representative DDS graph. If durability / large-sample fidelity fails,
-      fall back (rclrs on sourced-ROS hosts) before building UI on top.
-- [ ] `ros2` backend implementing `RosClient` over the validated client.
-- [ ] Real `topics`/`echo`/`hz` against a live pipeline; wire `dv_msgs`/`fs_msgs`
-      bindings.
+### Phase 2 — ROS transport via ros2-client/RustDDS  (`feat/2`) — the biggest bet
+- [x] **QoS-validation spike — PASS** (see [SPIKE.md](SPIKE.md)). Proven against
+      IFSSIM's live `rmw_fastrtps` graph: cross-vendor discovery (~50 topics),
+      RELIABLE delivery + CDR decode, and **latched TRANSIENT_LOCAL** retained
+      delivery to a late joiner (t+21 ms). Kill-criterion cleared — no fallback
+      to rclrs needed.
+- [x] `ros2` backend implementing `RosClient` over ros2-client/RustDDS, behind
+      the `ros2` feature; node spinner on a background thread.
+- [x] `dv_contract` extended with the IFSSIM/sim topic surface; `topics` /
+      `echo` / `hz` work against a live pipeline (Float32, fs_msgs/Track,
+      std_msgs/Bool decoded).
+- [x] Dockerfile — runs MingoROS in the pipeline's DDS domain (Linux/container).
+- [ ] Large reliable samples: decode `visualization_msgs/MarkerArray` (`/Conos`)
+      and `sensor_msgs/PointCloud2` — the reliable-*large* fragmentation case.
+- [ ] Broaden typed decode (`nav_msgs/Odometry`, `sensor_msgs/Imu`, the uDV
+      stock `std_msgs` byte topics) so `echo` covers the whole graph.
 
 ### Phase 3 — uDV link + flash
 - [ ] `micro_ros_agent` subprocess manager (spawn/own the serial agent, surface

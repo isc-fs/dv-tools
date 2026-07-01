@@ -8,7 +8,7 @@
 use anyhow::{bail, Result};
 use clap::{Parser, Subcommand, ValueEnum};
 use mingoros_core::dv_contract::{self, Qos, Reliability};
-use mingoros_core::ros::{fake::FakeRos, RosClient, RosError};
+use mingoros_core::ros::{fake::FakeRos, RosClient};
 use std::time::Instant;
 use tracing_subscriber::EnvFilter;
 
@@ -105,8 +105,10 @@ fn main() -> Result<()> {
 fn make_client(backend: Backend) -> Result<Box<dyn RosClient>> {
     match backend {
         Backend::Fake => Ok(Box::new(FakeRos::new())),
-        // The DDS backend lands in feat/2 after the QoS-validation spike.
-        Backend::Ros2 => Err(RosError::TransportUnavailable.into()),
+        #[cfg(feature = "ros2")]
+        Backend::Ros2 => Ok(Box::new(mingoros_core::ros::ros2::Ros2Client::new()?)),
+        #[cfg(not(feature = "ros2"))]
+        Backend::Ros2 => Err(mingoros_core::ros::RosError::TransportUnavailable.into()),
     }
 }
 

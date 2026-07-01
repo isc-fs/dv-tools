@@ -57,10 +57,15 @@ debugging only**; raw CAN stays MingoCAN's job.
       LiDAR/PointCloud2 is out of scope entirely.
 
 ### Phase 3 — uDV link + flash
-- [ ] `micro_ros_agent` subprocess manager (spawn/own the serial agent, surface
-      XRCE session state + the ~10 s gyro-cal startup).
-- [ ] Robust uDV detect (USB iSerial/product string or XRCE probe — VID/PID
-      `0483:5740` is generic ST CDC, not unique).
+- [x] Robust uDV detect (`mingoros udv`): enumerate USB serial ports, rank on
+      VID/PID `0483:5740` + product/serial/manufacturer name hints (the
+      generic-ST-CDC disambiguator). Pure ranking fn, unit-tested.
+- [x] `micro_ros_agent` manager (`mingoros agent [--dev …]`): auto-detects the
+      uDV, builds the argv, spawns/owns the bridge, surfaces the ~10 s gyro-cal
+      startup + a clear error if the agent binary is absent. → full bench flow:
+      `udv` → `agent --dev /dev/ttyACMx` → `state --backend ros2`.
+- [ ] *(needs hardware to verify live)* XRCE-session state parsing from the
+      agent's output; confirm the exact uDV product/iSerial string (usbd_desc.c).
 - [ ] uDV **SWD/DFU** flash (probe-rs or CubeProgrammer/OpenOCD/dfu-util),
       hard-separated in the UI from the AMS/ECU CAN-bootloader flow.
 

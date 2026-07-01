@@ -87,6 +87,20 @@ enum Cmd {
         duration: Option<u64>,
     },
 
+    /// Detect the uDV on the system's USB/serial ports (ranked candidates).
+    Udv,
+
+    /// Bridge a uDV onto the ROS graph via `micro_ros_agent` (so `--backend
+    /// ros2` can see it). Auto-detects the uDV unless --dev is given.
+    Agent {
+        /// Serial device, e.g. /dev/ttyACM0 (default: auto-detect the uDV).
+        #[arg(long)]
+        dev: Option<String>,
+        /// Serial baud (nominal for USB-CDC).
+        #[arg(long, default_value_t = 115_200)]
+        baud: u32,
+    },
+
     /// rosbag record/replay control — planned (dv_msgs StartBag/StopBag).
     Bag,
 }
@@ -110,6 +124,8 @@ fn main() -> Result<()> {
             force,
         } => cmd_publish(cli.backend, &topic, &value, force),
         Cmd::State { duration } => cmd_state(cli.backend, cli.json, duration),
+        Cmd::Udv => cmd_udv(cli.json),
+        Cmd::Agent { dev, baud } => cmd_agent(dev, baud),
         Cmd::Bag => cmd_planned("bag", "rosbag record/replay via dv_msgs StartBag/StopBag"),
     }
 }
@@ -370,6 +386,80 @@ fn render_state(backend: &str, snap: &Snapshot, unavailable: &[&'static str], js
     out.push('\n');
     print!("{out}");
     let _ = std::io::stdout().flush();
+}
+
+fn cmd_udv(json: bool) -> Result<()> {
+    let found = mingoros_core::agent::detect_udv().map_err(|e| anyhow::anyhow!("{e}"))?;
+    if json {
+        println!("{}", serde_json::to_string_pretty(&found)?);
+        return Ok(());
+    }
+    if found.is_empty() {
+        println!("No uDV candidate found.");
+        println!("Plug in the board (enumerates as an ST CDC-ACM, VID:PID 0483:5740) and retry.");
+        return Ok(());
+    }
+    println!("Detected uDV candidate(s) — best first:\n");
+    println!("{:<22} {:<5} {:<22} WHY", "PORT", "SCORE", "PRODUCT");
+    for m in &found {
+        println!(
+            "{:<22} {:<5} {:<22} {}",
+            m.port,
+            m.score,
+            m.product.as_deref().unwrap_or("-"),
+            m.why
+        );
+    }
+    println!("\nBridge it with:  mingoros agent --dev {}", found[0].port);
+    Ok(())
+}
+
+fn cmd_agent(dev: Option<String>, baud: u32) -> Result<()> {
+    use mingoros_core::agent::{detect_udv, micro_ros_agent_argv, AgentConfig, AgentTransport};
+
+    let dev = match dev {
+        Some(d) => d,
+        None => {
+            let found = detect_udv().map_err(|e| anyhow::anyhow!("{e}"))?;
+            match found.into_iter().next() {
+                Some(m) => {
+                    eprintln!("auto-detected uDV at {} (score {}; {})", m.port, m.score, m.why);
+                    m.port
+                }
+                None => bail!(
+                    "no uDV detected — plug in the board or pass --dev /dev/ttyACMx (see `mingoros udv`)"
+                ),
+            }
+        }
+    };
+
+    let cfg = AgentConfig {
+        transport: AgentTransport::Serial,
+        dev,
+        baud,
+        verbose: 4,
+    };
+    let argv = micro_ros_agent_argv(&cfg);
+    eprintln!("starting: micro_ros_agent {}", argv.join(" "));
+    eprintln!(
+        "(the uDV runs a ~10 s gyro-cal at boot — keep it still; its topics appear once the \
+         XRCE session establishes. Ctrl-C to stop.)\n"
+    );
+
+    match std::process::Command::new("micro_ros_agent")
+        .args(&argv)
+        .status()
+    {
+        Ok(s) => {
+            eprintln!("\nmicro_ros_agent exited ({s}).");
+            Ok(())
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => bail!(
+            "`micro_ros_agent` not found on PATH. It's a ROS 2 / micro-ROS package — install it \
+             (or run MingoROS in the container where it lives) and ensure it's on PATH."
+        ),
+        Err(e) => bail!("failed to launch micro_ros_agent: {e}"),
+    }
 }
 
 fn cmd_publish(backend: Backend, topic: &str, value: &str, force: bool) -> Result<()> {

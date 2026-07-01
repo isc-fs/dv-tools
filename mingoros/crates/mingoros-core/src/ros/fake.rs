@@ -64,7 +64,6 @@ fn cadence_for(topic: &str) -> Duration {
         dv_contract::TOPIC_ASSI_STATE
         | dv_contract::TOPIC_DV_STATUS
         | dv_contract::TOPIC_CTRL_CMD
-        | dv_contract::TOPIC_LIDAR
         | dv_contract::TOPIC_CONES
         | dv_contract::TOPIC_CONES_RAW
         | dv_contract::TOPIC_SLAM_POSE
@@ -144,9 +143,6 @@ fn synth_summary(topic: &str, seq: u64) -> String {
         dv_contract::TOPIC_MOTOR_RPM => {
             let rpm = 800.0 + ((seq as f64) * 0.1).sin().abs() * 4000.0;
             format!("data: {rpm:.0} rpm")
-        }
-        dv_contract::TOPIC_LIDAR => {
-            format!("PointCloud2  width~{}  height=1", 28000 + (seq % 400) * 7)
         }
         dv_contract::TOPIC_CONES | dv_contract::TOPIC_CONES_RAW => {
             let n = 10 + (seq % 6);

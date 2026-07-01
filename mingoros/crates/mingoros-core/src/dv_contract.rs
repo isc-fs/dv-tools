@@ -311,7 +311,8 @@ pub const TOPIC_STEERING: &str = "/steering_angle"; // std_msgs/Float32 (BEST_EF
 pub const TOPIC_STEERING_FEEDBACK: &str = "/steering/feedback"; // std_msgs/Float32MultiArray (BEST_EFFORT) [actual,target,motor] deg
 pub const TOPIC_MOTOR_RPM: &str = "/motor_rpm"; // std_msgs/Float32 (BEST_EFFORT)
 pub const TOPIC_DEBUG: &str = "/debug"; // std_msgs/String (RELIABLE)
-pub const TOPIC_LIDAR: &str = "/lidar_points"; // sensor_msgs/PointCloud2 — Hesai driver (not uDV)
+                                        // (LiDAR /lidar_points | /lidar/Lidar1 is intentionally out of scope — a topic
+                                        // debugger has no reason to echo a 1.4 MB PointCloud2; use rviz/foxglove.)
 
 // ⚠️ QoS MISMATCH (uDV feat/15 ↔ pipeline feat/7): the uDV publishes
 // `/assi/state` + `/ami/mission` BEST_EFFORT, but mission_control_node.py
@@ -344,7 +345,6 @@ pub const TOPIC_PATH: &str = "/Path"; // nav_msgs/Path
 // /slam/pose. Sim-specific below. See [[project_mingoros]] IFSSIM notes.
 // ---------------------------------------------------------------------------
 pub const TOPIC_SIM_IMU: &str = "/imu"; // sensor_msgs/Imu (same name as uDV feat/15 — coincides)
-pub const TOPIC_SIM_LIDAR: &str = "/lidar/Lidar1"; // sensor_msgs/PointCloud2
 pub const TOPIC_TESTING_TRACK: &str = "/testing_only/track"; // fs_msgs/Track — RELIABLE/TRANSIENT_LOCAL (latched)
 pub const TOPIC_TESTING_ODOM: &str = "/testing_only/odom"; // nav_msgs/Odometry (ground truth, best-effort)
 pub const TOPIC_CONE_SLAM_GT_ERROR: &str = "/cone_slam/gt_error_m"; // std_msgs/Float32 (SLAM accuracy diag)
@@ -438,7 +438,6 @@ pub fn recommended_qos(topic: &str) -> Option<Qos> {
         // uDV reliable publishers.
         TOPIC_IMU_STATUS | TOPIC_DEBUG => Qos::reliable(10),
         TOPIC_IMU => Qos::sensor(10),
-        TOPIC_LIDAR => Qos::sensor(5),
         TOPIC_CONES_RAW | TOPIC_CONES_ORANGE | TOPIC_CONES | TOPIC_CONES_FULL => Qos::reliable(10),
         TOPIC_SLAM_POSE | TOPIC_ODOM | TOPIC_PATH => Qos::reliable(10),
         // --- IFSSIM / sim surface (confirmed live via `ros2 topic info -v`) ---
@@ -451,7 +450,7 @@ pub fn recommended_qos(topic: &str) -> Option<Qos> {
         | TOPIC_CTRL_CMD_INTERNAL
         | TOPIC_SIGNAL_GO => Qos::reliable(10),
         // (TOPIC_SIM_IMU == TOPIC_IMU == "/imu", already handled above.)
-        TOPIC_SIM_LIDAR | TOPIC_MOTOR_RPM | TOPIC_STEERING | TOPIC_TESTING_ODOM => Qos::sensor(10),
+        TOPIC_MOTOR_RPM | TOPIC_STEERING | TOPIC_TESTING_ODOM => Qos::sensor(10),
         _ => return None,
     };
     Some(q)
@@ -537,12 +536,6 @@ pub const KNOWN_TOPICS: &[TopicSpec] = &[
         type_name: "sensor_msgs/msg/Imu",
         direction: Direction::Uplink,
         note: "uDV IMU, ~400 Hz",
-    },
-    TopicSpec {
-        name: TOPIC_LIDAR,
-        type_name: "sensor_msgs/msg/PointCloud2",
-        direction: Direction::Uplink,
-        note: "Hesai LiDAR, ~10 Hz",
     },
     TopicSpec {
         name: TOPIC_STEERING,

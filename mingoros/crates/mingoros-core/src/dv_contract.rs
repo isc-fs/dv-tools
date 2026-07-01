@@ -60,6 +60,48 @@ impl AsState {
 }
 
 // ---------------------------------------------------------------------------
+// Raw AS state machine — /as_state  (std_msgs/UInt8, uDV feat/15)
+//
+// DISTINCT from /assi/state: this is the uDV's internal AS state-machine byte,
+// with a DIFFERENT ordering from the FS-Rules ASSI code on /assi/state. Don't
+// confuse the two — a value of 1 means READY here but EMERGENCY on /assi/state.
+// ---------------------------------------------------------------------------
+
+/// Raw AS-machine state byte on [`TOPIC_AS_STATE`] (uDV `ros_task.c`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[repr(u8)]
+pub enum RawAsState {
+    Off = 0,
+    Ready = 1,
+    Driving = 2,
+    Emergency = 3,
+    Finished = 4,
+}
+
+impl RawAsState {
+    pub const fn from_u8(v: u8) -> Option<Self> {
+        match v {
+            0 => Some(Self::Off),
+            1 => Some(Self::Ready),
+            2 => Some(Self::Driving),
+            3 => Some(Self::Emergency),
+            4 => Some(Self::Finished),
+            _ => None,
+        }
+    }
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Off => "OFF",
+            Self::Ready => "READY",
+            Self::Driving => "DRIVING",
+            Self::Emergency => "EMERGENCY",
+            Self::Finished => "FINISHED",
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Pipeline lifecycle — /dv/status  (std_msgs/UInt8)
 //
 // The pipeline's own lifecycle, reported back to the uDV as the prepare/run
@@ -246,23 +288,42 @@ impl ConeColor {
 // topic name at a call site; reference these).
 // ---------------------------------------------------------------------------
 
-// Runtime stock-typed uDV ↔ mission_control interface.
-pub const TOPIC_ASSI_STATE: &str = "/assi/state"; // std_msgs/UInt8   uplink
-pub const TOPIC_AMI_MISSION: &str = "/ami/mission"; // std_msgs/Int32   uplink
-pub const TOPIC_DV_STATUS: &str = "/dv/status"; // std_msgs/UInt8   downlink (latched)
-pub const TOPIC_CTRL_CMD: &str = "/ctrl/cmd"; // geometry_msgs/Twist downlink
-pub const SERVICE_FORCE_EBS: &str = "/force_ebs"; // std_srvs/SetBool (service)
+// uDV firmware surface — CAR ground truth, verified against IFS08-DV-uDV
+// @ feat/15 `Core/Src/ros_task.c` (node `cubemx_node`, empty namespace →
+// absolute topics). ALL uDV publishers are BEST_EFFORT except `/imu/status`
+// and `/debug` (reliable). The uDV owns the AS state machine; the pipeline
+// only reacts.
+pub const TOPIC_ASSI_STATE: &str = "/assi/state"; // std_msgs/UInt8 (BEST_EFFORT) AS_* code, mirrors CAN 0x100
+pub const TOPIC_AS_STATE: &str = "/as_state"; // std_msgs/UInt8 (BEST_EFFORT) raw AS machine state (RawAsState — different bytes!)
+pub const TOPIC_AMI_MISSION: &str = "/ami/mission"; // std_msgs/Int32 (BEST_EFFORT) AMI index 0..9, -1 = none
+pub const TOPIC_RES_STATUS: &str = "/res/status"; // std_msgs/Int32 (BEST_EFFORT)
+pub const TOPIC_RES_GO: &str = "/res/go"; // std_msgs/Int32 (BEST_EFFORT) 0=no GO, 1=GO
+pub const TOPIC_DV_STATUS: &str = "/dv/status"; // std_msgs/UInt8 pipeline→uDV downlink; pipeline offers RELIABLE/TRANSIENT_LOCAL (latched)
+pub const TOPIC_CTRL_CMD: &str = "/ctrl/cmd"; // geometry_msgs/Twist pipeline→uDV downlink (BEST_EFFORT)
+pub const SERVICE_FORCE_EBS: &str = "/force_ebs"; // std_srvs/SetBool — SERVED by uDV
+pub const SERVICE_ACTIVATE_STEERING: &str = "/activate_steering"; // std_srvs/SetBool — SERVED by uDV
+pub const TOPIC_CMD_TEST: &str = "/cmd_test"; // std_msgs/Int32 — uDV SUBSCRIBES
+
+// uDV sensor / feedback surface.
+pub const TOPIC_IMU: &str = "/imu"; // sensor_msgs/Imu (BEST_EFFORT) — uDV publishes /imu, NOT /imu/data_raw
+pub const TOPIC_IMU_STATUS: &str = "/imu/status"; // std_msgs/Int32 (RELIABLE)
+pub const TOPIC_STEERING: &str = "/steering_angle"; // std_msgs/Float32 (BEST_EFFORT, RAD)
+pub const TOPIC_STEERING_FEEDBACK: &str = "/steering/feedback"; // std_msgs/Float32MultiArray (BEST_EFFORT) [actual,target,motor] deg
+pub const TOPIC_MOTOR_RPM: &str = "/motor_rpm"; // std_msgs/Float32 (BEST_EFFORT)
+pub const TOPIC_DEBUG: &str = "/debug"; // std_msgs/String (RELIABLE)
+pub const TOPIC_LIDAR: &str = "/lidar_points"; // sensor_msgs/PointCloud2 — Hesai driver (not uDV)
+
+// ⚠️ QoS MISMATCH (uDV feat/15 ↔ pipeline feat/7): the uDV publishes
+// `/assi/state` + `/ami/mission` BEST_EFFORT, but mission_control_node.py
+// subscribes them with `_LATCHED_QOS` (RELIABLE + TRANSIENT_LOCAL). A RELIABLE
+// reader does NOT match a BEST_EFFORT writer in DDS → SILENT NO-DATA on the
+// car. The firmware comment explicitly warns against this. MingoROS subscribes
+// BEST_EFFORT so it CAN observe the uDV — exactly the tool for flagging this.
 
 // Sim operator panel (sim-only).
 pub const TOPIC_SIM_MISSION: &str = "/sim/mission";
 pub const TOPIC_SIM_INTENT: &str = "/sim/intent";
 pub const TOPIC_SIM_ESTOP: &str = "/sim/estop";
-
-// Car sensor surface (published by the uDV / Hesai on canonical names).
-pub const TOPIC_IMU: &str = "/imu/data_raw"; // sensor_msgs/Imu        ~400 Hz
-pub const TOPIC_LIDAR: &str = "/lidar_points"; // sensor_msgs/PointCloud2 ~10 Hz
-pub const TOPIC_STEERING: &str = "/steering_angle"; // std_msgs/Float* (RAD)
-pub const TOPIC_MOTOR_RPM: &str = "/motor_rpm"; // std_msgs/Float* (shaft RPM)
 
 // Autonomy outputs a debugger visualises.
 pub const TOPIC_CONES_RAW: &str = "/Conos_raw"; // MarkerArray
@@ -282,7 +343,7 @@ pub const TOPIC_PATH: &str = "/Path"; // nav_msgs/Path
 // `ros2 topic info -v`). Shared with the car: /Conos*, /odom, /Path,
 // /slam/pose. Sim-specific below. See [[project_mingoros]] IFSSIM notes.
 // ---------------------------------------------------------------------------
-pub const TOPIC_SIM_IMU: &str = "/imu"; // sensor_msgs/Imu (car uses /imu/data_raw)
+pub const TOPIC_SIM_IMU: &str = "/imu"; // sensor_msgs/Imu (same name as uDV feat/15 — coincides)
 pub const TOPIC_SIM_LIDAR: &str = "/lidar/Lidar1"; // sensor_msgs/PointCloud2
 pub const TOPIC_TESTING_TRACK: &str = "/testing_only/track"; // fs_msgs/Track — RELIABLE/TRANSIENT_LOCAL (latched)
 pub const TOPIC_TESTING_ODOM: &str = "/testing_only/odom"; // nav_msgs/Odometry (ground truth, best-effort)
@@ -361,10 +422,21 @@ impl Qos {
 /// the ROS default and log it — an unknown topic's QoS is a discovery task).
 pub fn recommended_qos(topic: &str) -> Option<Qos> {
     let q = match topic {
-        // --- car (uDV stock) surface ---
+        // --- car / uDV firmware surface (feat/15 ground truth) ---
+        // Pipeline publishes /dv/status latched; uDV downlink /ctrl/cmd is BE.
         TOPIC_DV_STATUS => Qos::latched(1),
-        TOPIC_ASSI_STATE | TOPIC_AMI_MISSION => Qos::reliable(10),
         TOPIC_CTRL_CMD => Qos::sensor(10),
+        // uDV publishes these BEST_EFFORT — subscribe BE to actually see them
+        // (a reliable reader wouldn't match; that's the feat/7 mission_control
+        // bug this contract documents).
+        TOPIC_ASSI_STATE
+        | TOPIC_AS_STATE
+        | TOPIC_AMI_MISSION
+        | TOPIC_RES_STATUS
+        | TOPIC_RES_GO
+        | TOPIC_STEERING_FEEDBACK => Qos::sensor(10),
+        // uDV reliable publishers.
+        TOPIC_IMU_STATUS | TOPIC_DEBUG => Qos::reliable(10),
         TOPIC_IMU => Qos::sensor(10),
         TOPIC_LIDAR => Qos::sensor(5),
         TOPIC_CONES_RAW | TOPIC_CONES_ORANGE | TOPIC_CONES | TOPIC_CONES_FULL => Qos::reliable(10),
@@ -378,9 +450,8 @@ pub fn recommended_qos(topic: &str) -> Option<Qos> {
         | TOPIC_CTRL_KAPPA_MAX
         | TOPIC_CTRL_CMD_INTERNAL
         | TOPIC_SIGNAL_GO => Qos::reliable(10),
-        TOPIC_SIM_IMU | TOPIC_SIM_LIDAR | TOPIC_MOTOR_RPM | TOPIC_STEERING | TOPIC_TESTING_ODOM => {
-            Qos::sensor(10)
-        }
+        // (TOPIC_SIM_IMU == TOPIC_IMU == "/imu", already handled above.)
+        TOPIC_SIM_LIDAR | TOPIC_MOTOR_RPM | TOPIC_STEERING | TOPIC_TESTING_ODOM => Qos::sensor(10),
         _ => return None,
     };
     Some(q)
@@ -423,13 +494,31 @@ pub const KNOWN_TOPICS: &[TopicSpec] = &[
         name: TOPIC_ASSI_STATE,
         type_name: "std_msgs/msg/UInt8",
         direction: Direction::Uplink,
-        note: "AS state machine byte (heartbeat >=2 Hz)",
+        note: "AS_* ASSI code (BEST_EFFORT heartbeat >=2 Hz)",
+    },
+    TopicSpec {
+        name: TOPIC_AS_STATE,
+        type_name: "std_msgs/msg/UInt8",
+        direction: Direction::Uplink,
+        note: "raw AS-machine state (BEST_EFFORT; diff bytes from /assi/state)",
     },
     TopicSpec {
         name: TOPIC_AMI_MISSION,
         type_name: "std_msgs/msg/Int32",
         direction: Direction::Uplink,
-        note: "selected AMI mission index 0..9 (raw)",
+        note: "selected AMI mission index 0..9 (BEST_EFFORT, raw)",
+    },
+    TopicSpec {
+        name: TOPIC_RES_STATUS,
+        type_name: "std_msgs/msg/Int32",
+        direction: Direction::Uplink,
+        note: "RES status (BEST_EFFORT)",
+    },
+    TopicSpec {
+        name: TOPIC_RES_GO,
+        type_name: "std_msgs/msg/Int32",
+        direction: Direction::Uplink,
+        note: "RES go: 0=no GO, 1=GO (BEST_EFFORT)",
     },
     TopicSpec {
         name: TOPIC_DV_STATUS,
@@ -558,6 +647,36 @@ mod tests {
         assert_eq!(ConeColor::OrangeBig as u8, 2);
         assert_eq!(ConeColor::OrangeSmall as u8, 3);
         assert_eq!(ConeColor::Unknown as u8, 4);
+    }
+
+    // --- uDV feat/15 firmware ground truth ---
+    #[test]
+    fn udv_publishes_best_effort_state_topics() {
+        // uDV ros_task.c uses rclc_publisher_init_best_effort for these.
+        // MingoROS must subscribe BEST_EFFORT to see them (a reliable reader
+        // won't match) — this is the feat/7 mission_control mismatch.
+        for t in [TOPIC_ASSI_STATE, TOPIC_AS_STATE, TOPIC_AMI_MISSION] {
+            assert_eq!(
+                recommended_qos(t).unwrap().reliability,
+                Reliability::BestEffort,
+                "{t} must be best-effort per uDV feat/15"
+            );
+        }
+    }
+
+    #[test]
+    fn udv_imu_is_plain_imu_not_data_raw() {
+        // Firmware node cubemx_node (ns="") publishes relative "imu" → "/imu".
+        assert_eq!(TOPIC_IMU, "/imu");
+    }
+
+    #[test]
+    fn raw_as_state_differs_from_assi_code() {
+        // /as_state (RawAsState) and /assi/state (AsState) use DIFFERENT bytes:
+        // byte 1 = READY on /as_state but EMERGENCY on /assi/state.
+        assert_eq!(RawAsState::Ready as u8, 1);
+        assert_eq!(AsState::Emergency.as_u8(), 1);
+        assert_ne!(RawAsState::Ready as u8, AsState::Ready.as_u8());
     }
 
     #[test]

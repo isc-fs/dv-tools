@@ -158,6 +158,61 @@ impl RosClient for Ros2Client {
                     format!("data: {} (latched)", m.data)
                 })
             }
+            // uDV state bytes — decoded to contract labels (the ROS analogue of
+            // MingoCAN's DBC decode). BEST_EFFORT to match the uDV publishers.
+            dv_contract::TOPIC_ASSI_STATE => self.subscribe_typed::<msgs::UInt8>(
+                topic,
+                "std_msgs",
+                "UInt8",
+                qos_best_effort(),
+                |m| match dv_contract::AsState::from_u8(m.data) {
+                    Some(s) => format!("data: {} ({})", m.data, s.label()),
+                    None => format!("data: {} (?)", m.data),
+                },
+            ),
+            dv_contract::TOPIC_AS_STATE => self.subscribe_typed::<msgs::UInt8>(
+                topic,
+                "std_msgs",
+                "UInt8",
+                qos_best_effort(),
+                |m| match dv_contract::RawAsState::from_u8(m.data) {
+                    Some(s) => format!("data: {} ({})", m.data, s.label()),
+                    None => format!("data: {} (?)", m.data),
+                },
+            ),
+            // Pipeline→uDV lifecycle byte — latched.
+            dv_contract::TOPIC_DV_STATUS => self.subscribe_typed::<msgs::UInt8>(
+                topic,
+                "std_msgs",
+                "UInt8",
+                qos_latched(),
+                |m| match dv_contract::DvStatus::from_u8(m.data) {
+                    Some(s) => format!("data: {} ({}) (latched)", m.data, s.label()),
+                    None => format!("data: {} (?) (latched)", m.data),
+                },
+            ),
+            // uDV Int32 topics (BEST_EFFORT); AMI decoded to its mission.
+            dv_contract::TOPIC_AMI_MISSION => self.subscribe_typed::<msgs::Int32>(
+                topic,
+                "std_msgs",
+                "Int32",
+                qos_best_effort(),
+                |m| {
+                    let mid = dv_contract::ami_index_to_mission_id(m.data);
+                    let name = dv_contract::Mission::from_id(mid)
+                        .map(|x| x.name())
+                        .unwrap_or("none");
+                    format!("data: {} (→ mission_id {mid} {name})", m.data)
+                },
+            ),
+            dv_contract::TOPIC_RES_STATUS | dv_contract::TOPIC_RES_GO => self
+                .subscribe_typed::<msgs::Int32>(
+                    topic,
+                    "std_msgs",
+                    "Int32",
+                    qos_best_effort(),
+                    |m| format!("data: {}", m.data),
+                ),
             other => Err(RosError::Other(format!(
                 "ros2 backend does not yet decode {other} — the QoS spike decodes \
                  std_msgs/Float32 topics and the latched fs_msgs/Track. \

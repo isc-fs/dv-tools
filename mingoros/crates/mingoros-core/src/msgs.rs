@@ -21,6 +21,19 @@ pub struct Bool {
     pub data: bool,
 }
 
+/// `std_msgs/UInt8` — `uint8 data`. The uDV state bytes (`/assi/state`,
+/// `/as_state`, `/dv/status`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UInt8 {
+    pub data: u8,
+}
+
+/// `std_msgs/Int32` — `int32 data`. uDV `/ami/mission`, `/res/*`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Int32 {
+    pub data: i32,
+}
+
 /// `geometry_msgs/Point` — `float64 x, y, z`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Point {

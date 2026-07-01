@@ -118,6 +118,27 @@ fn synth_summary(topic: &str, seq: u64) -> String {
             };
             format!("data: {} ({})", s.as_u8(), s.label())
         }
+        dv_contract::TOPIC_AS_STATE => {
+            let s = match seq % 8 {
+                0 => dv_contract::RawAsState::Off,
+                1 => dv_contract::RawAsState::Ready,
+                7 => dv_contract::RawAsState::Finished,
+                _ => dv_contract::RawAsState::Driving,
+            };
+            format!("data: {} ({})", s as u8, s.label())
+        }
+        dv_contract::TOPIC_RES_STATUS => {
+            let (v, r) = if seq >= 3 {
+                (2, dv_contract::ResStatus::Go)
+            } else {
+                (0, dv_contract::ResStatus::Ok)
+            };
+            format!("data: {v} ({})", r.label())
+        }
+        dv_contract::TOPIC_RES_GO => {
+            let go = seq >= 3;
+            format!("data: {} ({})", go as i32, if go { "GO" } else { "no-GO" })
+        }
         dv_contract::TOPIC_AMI_MISSION => {
             let ami = (seq % 7) as i32; // 0..6
             let mid = dv_contract::ami_index_to_mission_id(ami);

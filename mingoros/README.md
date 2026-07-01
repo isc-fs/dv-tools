@@ -31,7 +31,20 @@ cargo run -- topics                      # list the known DV topics + QoS
 cargo run -- echo /dv/status --count 5   # decode the pipeline lifecycle bytes
 cargo run -- echo /ami/mission --count 5 # watch the AMI→mission_id mapping live
 cargo run -- hz /assi/state --samples 20 # measure rate + jitter
+cargo run -- state                       # ★ live safety dashboard (stopped-car view)
 cargo run -- pub /force_ebs true         # refused: actuation topic needs --force
+```
+
+`state` is the commissioning view — one panel over the priority safety topics
+(AS state, DV status, RES, mission, and the uDV `/debug` dashboard), each with a
+freshness dot (green fresh / red stale):
+
+```
+MingoROS · DV state   backend:ros2   (Ctrl-C to exit)
+  ● AS state  /assi/state   data: 2 (AS_READY)        0.1s
+  ● DV status /dv/status    data: 2 (DV_READY)        0.2s
+  ● RES       /res/status   data: 2 (GO)              0.1s
+  ● Safety    /debug        AS AS_READY || ASMS:on TS:on … R2D:on || RES:GO  0.1s
 ```
 
 **`feat/2`** — the live **ros2-client / RustDDS** backend (`--backend ros2`),

@@ -378,6 +378,13 @@ fn render_state(backend: &str, snap: &Snapshot, unavailable: &[&'static str], js
             ),
             None => (dot("90"), "(waiting…)".to_string(), String::new()),
         };
+        // Highlight danger states (EMERGENCY / ESTOP / EBS active / FAILED) in
+        // bold red — the glance-and-see signal for commissioning.
+        let value = if tty && is_danger(&value) {
+            format!("\x1b[1;31m{value}\x1b[0m")
+        } else {
+            value
+        };
         out.push_str(&format!(
             "  {marker} {label:<9} {topic:<13} {value}  {age}\n"
         ));
@@ -386,6 +393,12 @@ fn render_state(backend: &str, snap: &Snapshot, unavailable: &[&'static str], js
     out.push('\n');
     print!("{out}");
     let _ = std::io::stdout().flush();
+}
+
+/// A decoded value that signals a danger/fault state on the DV car.
+fn is_danger(value: &str) -> bool {
+    const DANGER: &[&str] = &["EMERGENCY", "ESTOP", "FAILED", "EBS:on"];
+    DANGER.iter().any(|d| value.contains(d))
 }
 
 fn cmd_udv(json: bool) -> Result<()> {
@@ -511,5 +524,25 @@ fn fmt_qos(qos: Option<&Qos>) -> String {
             };
             format!("{rel}/{dur} d{}", q.depth)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_danger;
+
+    #[test]
+    fn danger_states_flagged() {
+        assert!(is_danger("data: 1 (AS_EMERGENCY)"));
+        assert!(is_danger("data: 6 (DV_FAILED)"));
+        assert!(is_danger("data: 1 (ESTOP)"));
+        assert!(is_danger(
+            "AS AS_DRIVING || ASMS:on TS:on EBS:on ABS:ok ..."
+        ));
+        // Nominal states are not flagged.
+        assert!(!is_danger("data: 2 (AS_READY)"));
+        assert!(!is_danger(
+            "AS AS_READY || ASMS:on TS:on EBS:off ABS:ok || RES:GO"
+        ));
     }
 }

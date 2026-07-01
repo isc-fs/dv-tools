@@ -3,14 +3,15 @@
 # Run it with `--network host` on the same domain as the pipeline (e.g. next to
 # IFSSIM's dv_pipeline_stack). This is also how MingoROS ships into the pipeline.
 FROM rust:1.95-bookworm AS build
-RUN apt-get update && apt-get install -y --no-install-recommends libpcap-dev \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libpcap-dev libudev-dev pkg-config \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY . .
 RUN cargo build --release --features ros2 -p mingoros-cli
 
 FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends libpcap0.8 \
+RUN apt-get update && apt-get install -y --no-install-recommends libpcap0.8 libudev1 \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /src/target/release/mingoros /usr/local/bin/mingoros
 # Match the pipeline's DDS domain by default (override with -e ROS_DOMAIN_ID=N).

@@ -64,8 +64,24 @@ docker run --rm --network host -e ROS_DOMAIN_ID=0 mingoros:ros2 \
     --backend ros2 echo /cone_slam/gt_error_m --count 5
 ```
 
-Read-only for now; typed decode covers `std_msgs/Float32`, `std_msgs/Bool` and
-`fs_msgs/Track`. MarkerArray/PointCloud2 and publishing are follow-ups.
+Read-only for now; typed decode covers the state bytes (AS/DV/RES/mission),
+`nav_msgs/Odometry`, `sensor_msgs/Imu`, `geometry_msgs/Twist`,
+`fs_msgs/{Track,ControlCommand}`, and the uDV `/debug` safety string.
+
+## On the bench with a real uDV
+
+The uDV is a micro-ROS (XRCE-DDS) endpoint on USB-CDC — it only appears on the
+ROS graph once a `micro_ros_agent` bridges it. MingoROS drives that:
+
+```bash
+mingoros udv                       # detect the board (ranked USB candidates)
+mingoros agent --dev /dev/ttyACM0  # bridge it onto the graph (owns the agent)
+mingoros state --backend ros2      # live safety dashboard of the uDV
+```
+
+`udv` ranks ports on VID/PID `0483:5740` **plus** the USB product/serial name
+(the generic-ST-CDC disambiguator); `agent` auto-detects when `--dev` is
+omitted. Requires `micro_ros_agent` on `PATH`.
 
 ## Architecture
 

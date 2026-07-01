@@ -14,6 +14,7 @@
 //!   `ros2-client`/RustDDS backend.
 //! - `msgs` (behind `ros2`) — serde ROS2 message types the DDS backend decodes.
 
+pub mod agent;
 pub mod dv_contract;
 #[cfg(feature = "ros2")]
 pub mod msgs;

@@ -12,3 +12,6 @@ __pycache__/
 
 # Vendor manuals / datasheets — copyrighted, keep local-only.
 *.pdf
+
+# Rust build artifacts (Cargo.lock IS committed for the binary crates).
+target/

@@ -33,10 +33,18 @@ debugging only**; raw CAN stays MingoCAN's job.
       `echo` / `hz` work against a live pipeline (Float32, fs_msgs/Track,
       std_msgs/Bool decoded).
 - [x] Dockerfile — runs MingoROS in the pipeline's DDS domain (Linux/container).
-- [ ] Large reliable samples: decode `visualization_msgs/MarkerArray` (`/Conos`)
-      and `sensor_msgs/PointCloud2` — the reliable-*large* fragmentation case.
-- [ ] Broaden typed decode (`nav_msgs/Odometry`, `sensor_msgs/Imu`, the uDV
-      stock `std_msgs` byte topics) so `echo` covers the whole graph.
+- [x] Corrected `dv_contract` against uDV `feat/15` + pipeline `feat/7` (right
+      names/QoS; flagged the `/assi/state`+`/ami/mission` best-effort-vs-latched
+      mismatch — filed IFS08-DV-PIPELINE#15). uDV state bytes decode to labels.
+- [x] Broadened typed decode — live-verified vs IFSSIM: `nav_msgs/Odometry`
+      (`/odom`, `/slam/pose` → x,y,yaw), `sensor_msgs/Imu` (`/imu`), plus
+      `geometry_msgs/Twist` + `fs_msgs/ControlCommand` decoders. Prefix-struct
+      trick reads leading fields, skipping `[f64;36]` covariance.
+- [ ] Cone-map data: decode `visualization_msgs/MarkerArray` (`/Conos`) — the
+      signature viz feature. (Note: *not* a QoS gap — none of the pipeline's
+      RELIABLE topics exceed the DDS fragmentation threshold; the only huge
+      sample, `/lidar/Lidar1` PointCloud2, is BEST_EFFORT. So "reliable-large
+      fragmentation" is effectively N/A here — this is a coverage/viz item.)
 
 ### Phase 3 — uDV link + flash
 - [ ] `micro_ros_agent` subprocess manager (spawn/own the serial agent, surface

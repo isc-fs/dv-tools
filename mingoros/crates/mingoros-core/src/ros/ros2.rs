@@ -213,6 +213,69 @@ impl RosClient for Ros2Client {
                     qos_best_effort(),
                     |m| format!("data: {}", m.data),
                 ),
+            // Pose / odometry (RELIABLE) — decoded to x, y, yaw.
+            dv_contract::TOPIC_SLAM_POSE
+            | dv_contract::TOPIC_ODOM
+            | dv_contract::TOPIC_TESTING_ODOM => self.subscribe_typed::<msgs::OdometryPose>(
+                topic,
+                "nav_msgs",
+                "Odometry",
+                qos_reliable_volatile(),
+                |m| {
+                    let p = &m.pose.position;
+                    format!(
+                        "pose: x={:.2} y={:.2} yaw={:+.3}  (frame {})",
+                        p.x,
+                        p.y,
+                        m.pose.orientation.yaw(),
+                        m.header.frame_id
+                    )
+                },
+            ),
+            // IMU (BEST_EFFORT) — accel + gyro. (uDV feat/15 and IFSSIM both
+            // publish /imu, so TOPIC_IMU covers both.)
+            dv_contract::TOPIC_IMU => self.subscribe_typed::<msgs::Imu>(
+                topic,
+                "sensor_msgs",
+                "Imu",
+                qos_best_effort(),
+                |m| {
+                    format!(
+                        "accel[{:+.2},{:+.2},{:+.2}] gyro.z={:+.3}",
+                        m.linear_acceleration.x,
+                        m.linear_acceleration.y,
+                        m.linear_acceleration.z,
+                        m.angular_velocity.z
+                    )
+                },
+            ),
+            // Control command downlink (BEST_EFFORT Twist).
+            dv_contract::TOPIC_CTRL_CMD => self.subscribe_typed::<msgs::Twist>(
+                topic,
+                "geometry_msgs",
+                "Twist",
+                qos_best_effort(),
+                |m| {
+                    format!(
+                        "throttle(linear.x)={:+.3} steer(angular.z)={:+.3}",
+                        m.linear.x, m.angular.z
+                    )
+                },
+            ),
+            // fs_msgs/ControlCommand (RELIABLE) — throttle/steering/brake.
+            dv_contract::TOPIC_CTRL_CMD_INTERNAL | "/control_command" => self
+                .subscribe_typed::<msgs::ControlCommand>(
+                    topic,
+                    "fs_msgs",
+                    "ControlCommand",
+                    qos_reliable_volatile(),
+                    |m| {
+                        format!(
+                            "throttle={:+.3} steering={:+.3} brake={:.3}",
+                            m.throttle, m.steering, m.brake
+                        )
+                    },
+                ),
             other => Err(RosError::Other(format!(
                 "ros2 backend does not yet decode {other} — the QoS spike decodes \
                  std_msgs/Float32 topics and the latched fs_msgs/Track. \

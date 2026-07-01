@@ -21,15 +21,40 @@ debugging only**; raw CAN stays MingoCAN's job.
 - [x] CLI: `topics`, `echo`, `hz`, `pub` (with the actuation safety gate);
       `bag`/`adapters`/`monitor` stubbed with roadmap pointers.
 
-### Phase 2 — Car-capable ROS transport  (`feat/2`) — the biggest bet
-- [ ] **QoS-validation spike first, with a kill-criterion:** prove
-      `ros2-client`/RustDDS can subscribe to the **latched** (`TRANSIENT_LOCAL`)
-      `/dv/status` and the **reliable** `/Conos` `MarkerArray` on a
-      car-representative DDS graph. If durability / large-sample fidelity fails,
-      fall back (rclrs on sourced-ROS hosts) before building UI on top.
-- [ ] `ros2` backend implementing `RosClient` over the validated client.
-- [ ] Real `topics`/`echo`/`hz` against a live pipeline; wire `dv_msgs`/`fs_msgs`
-      bindings.
+> **Scope reality (car STOPPED):** MingoROS is used to commission a *stationary*
+> car, so the priority surface is the **state machine + safety/mission signals**
+> (AS state, ASMS, TS, SDC/RES, EBS, R2D, mission, `/dv/status`), *not* the
+> motion/perception topics (pose, odom, cones, control). The latter are decoded
+> for completeness but are not the focus.
+
+### Phase 2 — ROS transport via ros2-client/RustDDS  (`feat/2`) — the biggest bet
+- [x] **QoS-validation spike — PASS** (see [SPIKE.md](SPIKE.md)). Proven against
+      IFSSIM's live `rmw_fastrtps` graph: cross-vendor discovery (~50 topics),
+      RELIABLE delivery + CDR decode, and **latched TRANSIENT_LOCAL** retained
+      delivery to a late joiner (t+21 ms). Kill-criterion cleared — no fallback
+      to rclrs needed.
+- [x] `ros2` backend implementing `RosClient` over ros2-client/RustDDS, behind
+      the `ros2` feature; node spinner on a background thread.
+- [x] `dv_contract` extended with the IFSSIM/sim topic surface; `topics` /
+      `echo` / `hz` work against a live pipeline (Float32, fs_msgs/Track,
+      std_msgs/Bool decoded).
+- [x] Dockerfile — runs MingoROS in the pipeline's DDS domain (Linux/container).
+- [x] Corrected `dv_contract` against uDV `feat/15` + pipeline `feat/7` (right
+      names/QoS; flagged the `/assi/state`+`/ami/mission` best-effort-vs-latched
+      mismatch — filed IFS08-DV-PIPELINE#15). uDV state bytes decode to labels.
+- [x] Broadened typed decode — live-verified vs IFSSIM: `nav_msgs/Odometry`
+      (`/odom`, `/slam/pose` → x,y,yaw), `sensor_msgs/Imu` (`/imu`), plus
+      `geometry_msgs/Twist` + `fs_msgs/ControlCommand` decoders. Prefix-struct
+      trick reads leading fields, skipping `[f64;36]` covariance.
+- [x] **Safety / state-machine surface (the priority for stopped-car bring-up):**
+      `/debug` (the uDV dashboard string: AS ‖ ASMS/TS/SDC/EBS/ABS ‖
+      brakes/mission/R2D/motion/finished ‖ RES ‖ EBSinit), `/res/status`
+      (OK/ESTOP/GO/TIMEOUT/NONE), `/res/go`. `dv_contract` now mirrors the
+      firmware's `AS_SIG_*` signal word (`as_state.h`) + RES codes, with a
+      `describe_state_signals()` renderer and parity tests.
+- [ ] *(deprioritized — perception, only relevant when moving)* Cone-map decode
+      of `visualization_msgs/MarkerArray` (`/Conos`). Not a QoS gap; a viz item.
+      LiDAR/PointCloud2 is out of scope entirely.
 
 ### Phase 3 — uDV link + flash
 - [ ] `micro_ros_agent` subprocess manager (spawn/own the serial agent, surface

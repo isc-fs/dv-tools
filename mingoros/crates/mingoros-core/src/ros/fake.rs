@@ -64,7 +64,6 @@ fn cadence_for(topic: &str) -> Duration {
         dv_contract::TOPIC_ASSI_STATE
         | dv_contract::TOPIC_DV_STATUS
         | dv_contract::TOPIC_CTRL_CMD
-        | dv_contract::TOPIC_LIDAR
         | dv_contract::TOPIC_CONES
         | dv_contract::TOPIC_CONES_RAW
         | dv_contract::TOPIC_SLAM_POSE
@@ -119,6 +118,27 @@ fn synth_summary(topic: &str, seq: u64) -> String {
             };
             format!("data: {} ({})", s.as_u8(), s.label())
         }
+        dv_contract::TOPIC_AS_STATE => {
+            let s = match seq % 8 {
+                0 => dv_contract::RawAsState::Off,
+                1 => dv_contract::RawAsState::Ready,
+                7 => dv_contract::RawAsState::Finished,
+                _ => dv_contract::RawAsState::Driving,
+            };
+            format!("data: {} ({})", s as u8, s.label())
+        }
+        dv_contract::TOPIC_RES_STATUS => {
+            let (v, r) = if seq >= 3 {
+                (2, dv_contract::ResStatus::Go)
+            } else {
+                (0, dv_contract::ResStatus::Ok)
+            };
+            format!("data: {v} ({})", r.label())
+        }
+        dv_contract::TOPIC_RES_GO => {
+            let go = seq >= 3;
+            format!("data: {} ({})", go as i32, if go { "GO" } else { "no-GO" })
+        }
         dv_contract::TOPIC_AMI_MISSION => {
             let ami = (seq % 7) as i32; // 0..6
             let mid = dv_contract::ami_index_to_mission_id(ami);
@@ -126,6 +146,25 @@ fn synth_summary(topic: &str, seq: u64) -> String {
                 .map(|m| m.name())
                 .unwrap_or("none");
             format!("data: {ami}  (→ mission_id {mid} {name})")
+        }
+        dv_contract::TOPIC_DEBUG => {
+            // A plausible safety dashboard: ASMS+TS+R2D+standstill latch on as
+            // the sequence advances, EBS stays off — like a stopped bring-up.
+            use dv_contract::state_signal as s;
+            let mut sig = s::SDC_RES_OPEN | s::MISSION_SEL;
+            if seq >= 1 {
+                sig |= s::ASMS_ON | s::TS_ACTIVE | s::STANDSTILL;
+                sig &= !s::SDC_RES_OPEN;
+            }
+            if seq >= 3 {
+                sig |= s::ABS_CHECKS_OK | s::R2D;
+            }
+            let as_name = if seq >= 3 { "AS_READY" } else { "AS_OFF" };
+            format!(
+                "AS {as_name} || {} || RES:{}",
+                dv_contract::describe_state_signals(sig),
+                if seq >= 3 { "GO" } else { "OK" }
+            )
         }
         dv_contract::TOPIC_CTRL_CMD => {
             let t = ((seq as f64) * 0.2).sin();
@@ -144,9 +183,6 @@ fn synth_summary(topic: &str, seq: u64) -> String {
         dv_contract::TOPIC_MOTOR_RPM => {
             let rpm = 800.0 + ((seq as f64) * 0.1).sin().abs() * 4000.0;
             format!("data: {rpm:.0} rpm")
-        }
-        dv_contract::TOPIC_LIDAR => {
-            format!("PointCloud2  width~{}  height=1", 28000 + (seq % 400) * 7)
         }
         dv_contract::TOPIC_CONES | dv_contract::TOPIC_CONES_RAW => {
             let n = 10 + (seq % 6);

@@ -20,9 +20,10 @@ the [DV pipeline](https://github.com/isc-fs/IFS08-DV_PIPELINE) ROS2 graph.
 | `replay` — candump record/replay | `bag` — rosbag record/replay (later) |
 | `send-raw` — inject a frame | `pub` — inject a message (through a safety gate) |
 
-## Status — `feat/1` scaffold
+## Status
 
-Working today (in-process **fake** backend, no ROS install needed):
+**`feat/1`** — scaffold + `dv_contract` + in-process **fake** backend (no ROS
+install needed):
 
 ```bash
 cd mingoros
@@ -30,11 +31,41 @@ cargo run -- topics                      # list the known DV topics + QoS
 cargo run -- echo /dv/status --count 5   # decode the pipeline lifecycle bytes
 cargo run -- echo /ami/mission --count 5 # watch the AMI→mission_id mapping live
 cargo run -- hz /assi/state --samples 20 # measure rate + jitter
+cargo run -- state                       # ★ live safety dashboard (stopped-car view)
 cargo run -- pub /force_ebs true         # refused: actuation topic needs --force
 ```
 
-The real DDS transport (`--backend ros2`) is **not built yet** — it lands in
-`feat/2` after the QoS-validation spike (see [ROADMAP.md](ROADMAP.md)).
+`state` is the commissioning view — one panel over the priority safety topics
+(AS state, DV status, RES, mission, and the uDV `/debug` dashboard), each with a
+freshness dot (green fresh / red stale):
+
+```
+MingoROS · DV state   backend:ros2   (Ctrl-C to exit)
+  ● AS state  /assi/state   data: 2 (AS_READY)        0.1s
+  ● DV status /dv/status    data: 2 (DV_READY)        0.2s
+  ● RES       /res/status   data: 2 (GO)              0.1s
+  ● Safety    /debug        AS AS_READY || ASMS:on TS:on … R2D:on || RES:GO  0.1s
+```
+
+**`feat/2`** — the live **ros2-client / RustDDS** backend (`--backend ros2`),
+behind the `ros2` cargo feature. Interoperates with the pipeline's
+`rmw_fastrtps`; QoS-validation spike **passed** against IFSSIM (discovery,
+reliable, and latched TRANSIENT_LOCAL delivery — see [SPIKE.md](SPIKE.md)).
+
+MingoROS runs **inside the pipeline's DDS domain** (Linux/Pi/container) — on
+Docker Desktop for macOS a native client can't see the graph (host networking
+binds the Linux VM), so run it as a container on the same domain:
+
+```bash
+docker build -t mingoros:ros2 mingoros/
+# with IFSSIM's dv_pipeline_stack up + a bag replaying:
+docker run --rm --network host -e ROS_DOMAIN_ID=0 mingoros:ros2 --backend ros2 topics
+docker run --rm --network host -e ROS_DOMAIN_ID=0 mingoros:ros2 \
+    --backend ros2 echo /cone_slam/gt_error_m --count 5
+```
+
+Read-only for now; typed decode covers `std_msgs/Float32`, `std_msgs/Bool` and
+`fs_msgs/Track`. MarkerArray/PointCloud2 and publishing are follow-ups.
 
 ## Architecture
 
@@ -43,16 +74,17 @@ Tauri GUI) link by path:
 
 ```
 mingoros/
+├── Dockerfile                     # runs MingoROS in the pipeline's DDS domain
 ├── crates/mingoros-core/          # the library
 │   └── src/
 │       ├── dv_contract.rs         # SINGLE SOURCE OF TRUTH — AS/DV state bytes,
-│       │                          #   mission registry, AMI map, topic + QoS
-│       │                          #   catalogue. Ported from the pipeline's
-│       │                          #   interface_contract.py + fs_msgs, with
-│       │                          #   parity tests pinning every byte.
+│       │                          #   mission registry, AMI map, car + sim
+│       │                          #   topic + QoS catalogue. Parity-tested.
+│       ├── msgs.rs                # (ros2) serde ROS2 msg types for CDR decode
 │       └── ros/                   # ROS transport abstraction
 │           ├── mod.rs             #   RosClient trait + TopicInfo/Sample
-│           └── fake.rs            #   in-process synthetic graph (this backend)
+│           ├── fake.rs            #   in-process synthetic graph
+│           └── ros2.rs            #   (ros2) ros2-client/RustDDS live backend
 └── crates/mingoros-cli/           # the `mingoros` binary (clap)
 ```
 

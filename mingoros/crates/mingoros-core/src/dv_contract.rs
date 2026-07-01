@@ -60,6 +60,129 @@ impl AsState {
 }
 
 // ---------------------------------------------------------------------------
+// Raw AS state machine — /as_state  (std_msgs/UInt8, uDV feat/15)
+//
+// DISTINCT from /assi/state: this is the uDV's internal AS state-machine byte,
+// with a DIFFERENT ordering from the FS-Rules ASSI code on /assi/state. Don't
+// confuse the two — a value of 1 means READY here but EMERGENCY on /assi/state.
+// ---------------------------------------------------------------------------
+
+/// Raw AS-machine state byte on [`TOPIC_AS_STATE`] (uDV `ros_task.c`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[repr(u8)]
+pub enum RawAsState {
+    Off = 0,
+    Ready = 1,
+    Driving = 2,
+    Emergency = 3,
+    Finished = 4,
+}
+
+impl RawAsState {
+    pub const fn from_u8(v: u8) -> Option<Self> {
+        match v {
+            0 => Some(Self::Off),
+            1 => Some(Self::Ready),
+            2 => Some(Self::Driving),
+            3 => Some(Self::Emergency),
+            4 => Some(Self::Finished),
+            _ => None,
+        }
+    }
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Off => "OFF",
+            Self::Ready => "READY",
+            Self::Driving => "DRIVING",
+            Self::Emergency => "EMERGENCY",
+            Self::Finished => "FINISHED",
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// RES status — /res/status  (std_msgs/Int32, uDV feat/15 ros_task.c)
+//
+// The Remote Emergency System PDO status. The GO/ESTOP here gate the AS state
+// machine, so it's a top-priority signal when debugging a stopped car.
+// ---------------------------------------------------------------------------
+
+/// Coded RES status carried on [`TOPIC_RES_STATUS`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub enum ResStatus {
+    Ok,      // 0  — received, no e-stop / go
+    Estop,   // 1  — emergency stop asserted
+    Go,      // 2  — go signal active
+    Timeout, // -1 — RES PDO stale
+    None,    // -2 — never received
+}
+
+impl ResStatus {
+    pub const fn from_i32(v: i32) -> Option<Self> {
+        match v {
+            0 => Some(Self::Ok),
+            1 => Some(Self::Estop),
+            2 => Some(Self::Go),
+            -1 => Some(Self::Timeout),
+            -2 => Some(Self::None),
+            _ => None,
+        }
+    }
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Ok => "OK",
+            Self::Estop => "ESTOP",
+            Self::Go => "GO",
+            Self::Timeout => "TIMEOUT",
+            Self::None => "NONE",
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// AS state-machine signal word — the 10 safety booleans the uDV packs and
+// formats onto /debug. Mirror of the AS_SIG_* bits in the firmware's
+// `Core/Inc/as_state.h` (feat/15). These — ASMS / TS / EBS / SDC / R2D — are
+// THE signals to watch when commissioning a stopped car.
+// ---------------------------------------------------------------------------
+
+/// Bit positions of the uDV state-machine signal word (`ros_get_state_signals`).
+pub mod state_signal {
+    pub const ASMS_ON: u16 = 1 << 0; // Autonomous System Master Switch on
+    pub const TS_ACTIVE: u16 = 1 << 1; // Tractive System active
+    pub const SDC_RES_OPEN: u16 = 1 << 2; // Shutdown Circuit / RES open
+    pub const EBS_ACTIVATED: u16 = 1 << 3; // Emergency Brake System engaged
+    pub const ABS_CHECKS_OK: u16 = 1 << 4; // ASB self-checks passed
+    pub const BRAKES_ENGAGED: u16 = 1 << 5;
+    pub const MISSION_SEL: u16 = 1 << 6; // a mission is selected
+    pub const R2D: u16 = 1 << 7; // Ready to Drive
+    pub const STANDSTILL: u16 = 1 << 8; // vehicle at standstill
+    pub const MISSION_DONE: u16 = 1 << 9;
+}
+
+/// Render a state-machine signal word as the firmware's `/debug` labels — so a
+/// numeric signal source (if one is ever exposed) reads the same as `/debug`.
+pub fn describe_state_signals(sig: u16) -> String {
+    use state_signal as s;
+    let f = |bit: u16, on: &'static str, off: &'static str| if sig & bit != 0 { on } else { off };
+    format!(
+        "ASMS:{} TS:{} SDC:{} EBS:{} ABS:{} | brakes:{} mission:{} R2D:{} motion:{} finished:{}",
+        f(s::ASMS_ON, "on", "off"),
+        f(s::TS_ACTIVE, "on", "off"),
+        f(s::SDC_RES_OPEN, "open", "closed"),
+        f(s::EBS_ACTIVATED, "on", "off"),
+        f(s::ABS_CHECKS_OK, "ok", "fail"),
+        f(s::BRAKES_ENGAGED, "on", "off"),
+        f(s::MISSION_SEL, "set", "unset"),
+        f(s::R2D, "on", "off"),
+        f(s::STANDSTILL, "standstill", "moving"),
+        f(s::MISSION_DONE, "yes", "no"),
+    )
+}
+
+// ---------------------------------------------------------------------------
 // Pipeline lifecycle — /dv/status  (std_msgs/UInt8)
 //
 // The pipeline's own lifecycle, reported back to the uDV as the prepare/run
@@ -246,23 +369,43 @@ impl ConeColor {
 // topic name at a call site; reference these).
 // ---------------------------------------------------------------------------
 
-// Runtime stock-typed uDV ↔ mission_control interface.
-pub const TOPIC_ASSI_STATE: &str = "/assi/state"; // std_msgs/UInt8   uplink
-pub const TOPIC_AMI_MISSION: &str = "/ami/mission"; // std_msgs/Int32   uplink
-pub const TOPIC_DV_STATUS: &str = "/dv/status"; // std_msgs/UInt8   downlink (latched)
-pub const TOPIC_CTRL_CMD: &str = "/ctrl/cmd"; // geometry_msgs/Twist downlink
-pub const SERVICE_FORCE_EBS: &str = "/force_ebs"; // std_srvs/SetBool (service)
+// uDV firmware surface — CAR ground truth, verified against IFS08-DV-uDV
+// @ feat/15 `Core/Src/ros_task.c` (node `cubemx_node`, empty namespace →
+// absolute topics). ALL uDV publishers are BEST_EFFORT except `/imu/status`
+// and `/debug` (reliable). The uDV owns the AS state machine; the pipeline
+// only reacts.
+pub const TOPIC_ASSI_STATE: &str = "/assi/state"; // std_msgs/UInt8 (BEST_EFFORT) AS_* code, mirrors CAN 0x100
+pub const TOPIC_AS_STATE: &str = "/as_state"; // std_msgs/UInt8 (BEST_EFFORT) raw AS machine state (RawAsState — different bytes!)
+pub const TOPIC_AMI_MISSION: &str = "/ami/mission"; // std_msgs/Int32 (BEST_EFFORT) AMI index 0..9, -1 = none
+pub const TOPIC_RES_STATUS: &str = "/res/status"; // std_msgs/Int32 (BEST_EFFORT)
+pub const TOPIC_RES_GO: &str = "/res/go"; // std_msgs/Int32 (BEST_EFFORT) 0=no GO, 1=GO
+pub const TOPIC_DV_STATUS: &str = "/dv/status"; // std_msgs/UInt8 pipeline→uDV downlink; pipeline offers RELIABLE/TRANSIENT_LOCAL (latched)
+pub const TOPIC_CTRL_CMD: &str = "/ctrl/cmd"; // geometry_msgs/Twist pipeline→uDV downlink (BEST_EFFORT)
+pub const SERVICE_FORCE_EBS: &str = "/force_ebs"; // std_srvs/SetBool — SERVED by uDV
+pub const SERVICE_ACTIVATE_STEERING: &str = "/activate_steering"; // std_srvs/SetBool — SERVED by uDV
+pub const TOPIC_CMD_TEST: &str = "/cmd_test"; // std_msgs/Int32 — uDV SUBSCRIBES
+
+// uDV sensor / feedback surface.
+pub const TOPIC_IMU: &str = "/imu"; // sensor_msgs/Imu (BEST_EFFORT) — uDV publishes /imu, NOT /imu/data_raw
+pub const TOPIC_IMU_STATUS: &str = "/imu/status"; // std_msgs/Int32 (RELIABLE)
+pub const TOPIC_STEERING: &str = "/steering_angle"; // std_msgs/Float32 (BEST_EFFORT, RAD)
+pub const TOPIC_STEERING_FEEDBACK: &str = "/steering/feedback"; // std_msgs/Float32MultiArray (BEST_EFFORT) [actual,target,motor] deg
+pub const TOPIC_MOTOR_RPM: &str = "/motor_rpm"; // std_msgs/Float32 (BEST_EFFORT)
+pub const TOPIC_DEBUG: &str = "/debug"; // std_msgs/String (RELIABLE)
+                                        // (LiDAR /lidar_points | /lidar/Lidar1 is intentionally out of scope — a topic
+                                        // debugger has no reason to echo a 1.4 MB PointCloud2; use rviz/foxglove.)
+
+// ⚠️ QoS MISMATCH (uDV feat/15 ↔ pipeline feat/7): the uDV publishes
+// `/assi/state` + `/ami/mission` BEST_EFFORT, but mission_control_node.py
+// subscribes them with `_LATCHED_QOS` (RELIABLE + TRANSIENT_LOCAL). A RELIABLE
+// reader does NOT match a BEST_EFFORT writer in DDS → SILENT NO-DATA on the
+// car. The firmware comment explicitly warns against this. MingoROS subscribes
+// BEST_EFFORT so it CAN observe the uDV — exactly the tool for flagging this.
 
 // Sim operator panel (sim-only).
 pub const TOPIC_SIM_MISSION: &str = "/sim/mission";
 pub const TOPIC_SIM_INTENT: &str = "/sim/intent";
 pub const TOPIC_SIM_ESTOP: &str = "/sim/estop";
-
-// Car sensor surface (published by the uDV / Hesai on canonical names).
-pub const TOPIC_IMU: &str = "/imu/data_raw"; // sensor_msgs/Imu        ~400 Hz
-pub const TOPIC_LIDAR: &str = "/lidar_points"; // sensor_msgs/PointCloud2 ~10 Hz
-pub const TOPIC_STEERING: &str = "/steering_angle"; // std_msgs/Float* (RAD)
-pub const TOPIC_MOTOR_RPM: &str = "/motor_rpm"; // std_msgs/Float* (shaft RPM)
 
 // Autonomy outputs a debugger visualises.
 pub const TOPIC_CONES_RAW: &str = "/Conos_raw"; // MarkerArray
@@ -272,6 +415,27 @@ pub const TOPIC_CONES_FULL: &str = "/Conos_full"; // MarkerArray
 pub const TOPIC_SLAM_POSE: &str = "/slam/pose"; // nav_msgs/Odometry
 pub const TOPIC_ODOM: &str = "/odom"; // nav_msgs/Odometry
 pub const TOPIC_PATH: &str = "/Path"; // nav_msgs/Path
+
+// ---------------------------------------------------------------------------
+// IFSSIM / sim-pipeline surface — the MingoROS ros2 test bed.
+//
+// IFSSIM vendors an OLDER pipeline than the uDV stock interface above: it has
+// NO /dv/status, /assi/state, /ami/mission, /force_ebs. These are what the
+// IFSSIM bag replay + live pipeline actually publish (confirmed live via
+// `ros2 topic info -v`). Shared with the car: /Conos*, /odom, /Path,
+// /slam/pose. Sim-specific below. See [[project_mingoros]] IFSSIM notes.
+// ---------------------------------------------------------------------------
+pub const TOPIC_SIM_IMU: &str = "/imu"; // sensor_msgs/Imu (same name as uDV feat/15 — coincides)
+pub const TOPIC_TESTING_TRACK: &str = "/testing_only/track"; // fs_msgs/Track — RELIABLE/TRANSIENT_LOCAL (latched)
+pub const TOPIC_TESTING_ODOM: &str = "/testing_only/odom"; // nav_msgs/Odometry (ground truth, best-effort)
+pub const TOPIC_CONE_SLAM_GT_ERROR: &str = "/cone_slam/gt_error_m"; // std_msgs/Float32 (SLAM accuracy diag)
+pub const TOPIC_CTRL_V_SET: &str = "/control/v_set_mps"; // std_msgs/Float32
+pub const TOPIC_CTRL_KAPPA_MAX: &str = "/control/kappa_max_per_m"; // std_msgs/Float32
+pub const TOPIC_CTRL_CMD_INTERNAL: &str = "/ctrl/cmd_internal"; // fs_msgs/ControlCommand
+pub const TOPIC_CTRL_EMERGENCY: &str = "/ctrl/emergency"; // std_msgs/Bool — latched
+pub const TOPIC_SIGNAL_EBS: &str = "/signal/ebs"; // std_msgs/Empty — latched
+pub const TOPIC_SIGNAL_GO: &str = "/signal/go"; // fs_msgs/GoSignal
+pub const TOPIC_SLAM_FINISHED: &str = "/slam/finished"; // std_msgs/Bool — latched
 
 /// Minimum heartbeat cadence for the byte topics (`/assi/state`,
 /// `/dv/status`): each is the other side's liveness signal. A staler stream
@@ -339,13 +503,35 @@ impl Qos {
 /// the ROS default and log it — an unknown topic's QoS is a discovery task).
 pub fn recommended_qos(topic: &str) -> Option<Qos> {
     let q = match topic {
+        // --- car / uDV firmware surface (feat/15 ground truth) ---
+        // Pipeline publishes /dv/status latched; uDV downlink /ctrl/cmd is BE.
         TOPIC_DV_STATUS => Qos::latched(1),
-        TOPIC_ASSI_STATE | TOPIC_AMI_MISSION => Qos::reliable(10),
         TOPIC_CTRL_CMD => Qos::sensor(10),
+        // uDV publishes these BEST_EFFORT — subscribe BE to actually see them
+        // (a reliable reader wouldn't match; that's the feat/7 mission_control
+        // bug this contract documents).
+        TOPIC_ASSI_STATE
+        | TOPIC_AS_STATE
+        | TOPIC_AMI_MISSION
+        | TOPIC_RES_STATUS
+        | TOPIC_RES_GO
+        | TOPIC_STEERING_FEEDBACK => Qos::sensor(10),
+        // uDV reliable publishers.
+        TOPIC_IMU_STATUS | TOPIC_DEBUG => Qos::reliable(10),
         TOPIC_IMU => Qos::sensor(10),
-        TOPIC_LIDAR => Qos::sensor(5),
         TOPIC_CONES_RAW | TOPIC_CONES_ORANGE | TOPIC_CONES | TOPIC_CONES_FULL => Qos::reliable(10),
         TOPIC_SLAM_POSE | TOPIC_ODOM | TOPIC_PATH => Qos::reliable(10),
+        // --- IFSSIM / sim surface (confirmed live via `ros2 topic info -v`) ---
+        TOPIC_TESTING_TRACK | TOPIC_CTRL_EMERGENCY | TOPIC_SIGNAL_EBS | TOPIC_SLAM_FINISHED => {
+            Qos::latched(1)
+        }
+        TOPIC_CONE_SLAM_GT_ERROR
+        | TOPIC_CTRL_V_SET
+        | TOPIC_CTRL_KAPPA_MAX
+        | TOPIC_CTRL_CMD_INTERNAL
+        | TOPIC_SIGNAL_GO => Qos::reliable(10),
+        // (TOPIC_SIM_IMU == TOPIC_IMU == "/imu", already handled above.)
+        TOPIC_MOTOR_RPM | TOPIC_STEERING | TOPIC_TESTING_ODOM => Qos::sensor(10),
         _ => return None,
     };
     Some(q)
@@ -388,13 +574,37 @@ pub const KNOWN_TOPICS: &[TopicSpec] = &[
         name: TOPIC_ASSI_STATE,
         type_name: "std_msgs/msg/UInt8",
         direction: Direction::Uplink,
-        note: "AS state machine byte (heartbeat >=2 Hz)",
+        note: "AS_* ASSI code (BEST_EFFORT heartbeat >=2 Hz)",
+    },
+    TopicSpec {
+        name: TOPIC_AS_STATE,
+        type_name: "std_msgs/msg/UInt8",
+        direction: Direction::Uplink,
+        note: "raw AS-machine state (BEST_EFFORT; diff bytes from /assi/state)",
     },
     TopicSpec {
         name: TOPIC_AMI_MISSION,
         type_name: "std_msgs/msg/Int32",
         direction: Direction::Uplink,
-        note: "selected AMI mission index 0..9 (raw)",
+        note: "selected AMI mission index 0..9 (BEST_EFFORT, raw)",
+    },
+    TopicSpec {
+        name: TOPIC_RES_STATUS,
+        type_name: "std_msgs/msg/Int32",
+        direction: Direction::Uplink,
+        note: "RES status (BEST_EFFORT)",
+    },
+    TopicSpec {
+        name: TOPIC_RES_GO,
+        type_name: "std_msgs/msg/Int32",
+        direction: Direction::Uplink,
+        note: "RES go: 0=no GO, 1=GO (BEST_EFFORT)",
+    },
+    TopicSpec {
+        name: TOPIC_DEBUG,
+        type_name: "std_msgs/msg/String",
+        direction: Direction::Uplink,
+        note: "★ safety/state dashboard: AS || ASMS/TS/SDC/EBS/ABS || R2D/... || RES",
     },
     TopicSpec {
         name: TOPIC_DV_STATUS,
@@ -413,12 +623,6 @@ pub const KNOWN_TOPICS: &[TopicSpec] = &[
         type_name: "sensor_msgs/msg/Imu",
         direction: Direction::Uplink,
         note: "uDV IMU, ~400 Hz",
-    },
-    TopicSpec {
-        name: TOPIC_LIDAR,
-        type_name: "sensor_msgs/msg/PointCloud2",
-        direction: Direction::Uplink,
-        note: "Hesai LiDAR, ~10 Hz",
     },
     TopicSpec {
         name: TOPIC_STEERING,
@@ -523,6 +727,63 @@ mod tests {
         assert_eq!(ConeColor::OrangeBig as u8, 2);
         assert_eq!(ConeColor::OrangeSmall as u8, 3);
         assert_eq!(ConeColor::Unknown as u8, 4);
+    }
+
+    // --- uDV feat/15 firmware ground truth ---
+    #[test]
+    fn udv_publishes_best_effort_state_topics() {
+        // uDV ros_task.c uses rclc_publisher_init_best_effort for these.
+        // MingoROS must subscribe BEST_EFFORT to see them (a reliable reader
+        // won't match) — this is the feat/7 mission_control mismatch.
+        for t in [TOPIC_ASSI_STATE, TOPIC_AS_STATE, TOPIC_AMI_MISSION] {
+            assert_eq!(
+                recommended_qos(t).unwrap().reliability,
+                Reliability::BestEffort,
+                "{t} must be best-effort per uDV feat/15"
+            );
+        }
+    }
+
+    #[test]
+    fn udv_imu_is_plain_imu_not_data_raw() {
+        // Firmware node cubemx_node (ns="") publishes relative "imu" → "/imu".
+        assert_eq!(TOPIC_IMU, "/imu");
+    }
+
+    #[test]
+    fn raw_as_state_differs_from_assi_code() {
+        // /as_state (RawAsState) and /assi/state (AsState) use DIFFERENT bytes:
+        // byte 1 = READY on /as_state but EMERGENCY on /assi/state.
+        assert_eq!(RawAsState::Ready as u8, 1);
+        assert_eq!(AsState::Emergency.as_u8(), 1);
+        assert_ne!(RawAsState::Ready as u8, AsState::Ready.as_u8());
+    }
+
+    #[test]
+    fn res_status_codes_match_firmware() {
+        // ros_task.c res_status_name(): 0 OK, 1 ESTOP, 2 GO, -1 TIMEOUT, -2 NONE
+        assert_eq!(ResStatus::from_i32(0).unwrap().label(), "OK");
+        assert_eq!(ResStatus::from_i32(1).unwrap().label(), "ESTOP");
+        assert_eq!(ResStatus::from_i32(2).unwrap().label(), "GO");
+        assert_eq!(ResStatus::from_i32(-1).unwrap().label(), "TIMEOUT");
+        assert_eq!(ResStatus::from_i32(-2).unwrap().label(), "NONE");
+        assert!(ResStatus::from_i32(9).is_none());
+    }
+
+    #[test]
+    fn state_signal_bits_and_render() {
+        use state_signal as s;
+        // Bit positions match as_state.h AS_SIG_* order.
+        assert_eq!(s::ASMS_ON, 1);
+        assert_eq!(s::TS_ACTIVE, 2);
+        assert_eq!(s::EBS_ACTIVATED, 8);
+        assert_eq!(s::MISSION_DONE, 1 << 9);
+        // Render mirrors the firmware's /debug labels.
+        let out = describe_state_signals(s::ASMS_ON | s::TS_ACTIVE | s::EBS_ACTIVATED);
+        assert!(out.contains("ASMS:on"));
+        assert!(out.contains("TS:on"));
+        assert!(out.contains("EBS:on"));
+        assert!(out.contains("R2D:off"));
     }
 
     #[test]

@@ -18,6 +18,8 @@ use crate::dv_contract::{self, Qos};
 use serde::Serialize;
 
 pub mod fake;
+#[cfg(feature = "ros2")]
+pub mod ros2;
 
 /// Metadata about a discovered (or a priori known) topic.
 #[derive(Debug, Clone, Serialize)]

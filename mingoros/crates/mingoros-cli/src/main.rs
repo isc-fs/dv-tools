@@ -8,8 +8,10 @@
 use anyhow::{bail, Result};
 use clap::{Parser, Subcommand, ValueEnum};
 use mingoros_core::dv_contract::{self, Qos, Reliability};
-use mingoros_core::ros::{fake::FakeRos, RosClient, RosError};
-use std::time::Instant;
+use mingoros_core::ros::{fake::FakeRos, RosClient};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Parser)]
@@ -76,6 +78,15 @@ enum Cmd {
         force: bool,
     },
 
+    /// Live safety/state dashboard — subscribes the priority topics
+    /// (AS state, DV status, RES, mission, /debug) and renders one panel.
+    /// The view for commissioning a stopped car.
+    State {
+        /// Stop after this many seconds (default: run until Ctrl-C).
+        #[arg(long)]
+        duration: Option<u64>,
+    },
+
     /// rosbag record/replay control — planned (dv_msgs StartBag/StopBag).
     Bag,
 }
@@ -98,6 +109,7 @@ fn main() -> Result<()> {
             value,
             force,
         } => cmd_publish(cli.backend, &topic, &value, force),
+        Cmd::State { duration } => cmd_state(cli.backend, cli.json, duration),
         Cmd::Bag => cmd_planned("bag", "rosbag record/replay via dv_msgs StartBag/StopBag"),
     }
 }
@@ -105,8 +117,10 @@ fn main() -> Result<()> {
 fn make_client(backend: Backend) -> Result<Box<dyn RosClient>> {
     match backend {
         Backend::Fake => Ok(Box::new(FakeRos::new())),
-        // The DDS backend lands in feat/2 after the QoS-validation spike.
-        Backend::Ros2 => Err(RosError::TransportUnavailable.into()),
+        #[cfg(feature = "ros2")]
+        Backend::Ros2 => Ok(Box::new(mingoros_core::ros::ros2::Ros2Client::new()?)),
+        #[cfg(not(feature = "ros2"))]
+        Backend::Ros2 => Err(mingoros_core::ros::RosError::TransportUnavailable.into()),
     }
 }
 
@@ -210,6 +224,152 @@ fn cmd_hz(backend: Backend, topic: &str, samples: u64) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// Priority topics for the stopped-car dashboard: (label, topic).
+const STATE_TOPICS: &[(&str, &str)] = &[
+    ("AS state", dv_contract::TOPIC_ASSI_STATE),
+    ("Raw AS", dv_contract::TOPIC_AS_STATE),
+    ("DV status", dv_contract::TOPIC_DV_STATUS),
+    ("RES", dv_contract::TOPIC_RES_STATUS),
+    ("RES go", dv_contract::TOPIC_RES_GO),
+    ("Mission", dv_contract::TOPIC_AMI_MISSION),
+    ("Safety", dv_contract::TOPIC_DEBUG),
+];
+
+/// Latest snapshot of one topic, for the freshness-aware dashboard.
+struct Entry {
+    summary: String,
+    last: Instant,
+    count: u64,
+}
+
+type Snapshot = Arc<Mutex<HashMap<&'static str, Entry>>>;
+
+fn cmd_state(backend: Backend, json: bool, duration: Option<u64>) -> Result<()> {
+    let client = make_client(backend)?;
+    let backend_name = client.backend_name();
+
+    // One RX thread per topic, all updating a shared snapshot (the
+    // WarioCharger dashboard model: RX threads + Arc<Mutex<state>> + render).
+    let snap: Snapshot = Arc::new(Mutex::new(HashMap::new()));
+    let mut unavailable: Vec<&'static str> = Vec::new();
+    for &(_, topic) in STATE_TOPICS {
+        match client.subscribe(topic) {
+            Ok(mut stream) => {
+                let snap = Arc::clone(&snap);
+                std::thread::spawn(move || {
+                    while let Some(s) = stream.next_sample() {
+                        let mut g = snap.lock().unwrap();
+                        let e = g.entry(topic).or_insert(Entry {
+                            summary: String::new(),
+                            last: Instant::now(),
+                            count: 0,
+                        });
+                        e.summary = s.summary;
+                        e.last = Instant::now();
+                        e.count += 1;
+                    }
+                });
+            }
+            Err(_) => unavailable.push(topic),
+        }
+    }
+
+    let start = Instant::now();
+    loop {
+        render_state(backend_name, &snap, &unavailable, json);
+        std::thread::sleep(Duration::from_millis(250));
+        if let Some(d) = duration {
+            if start.elapsed().as_secs() >= d {
+                break;
+            }
+        }
+    }
+    if !json {
+        println!();
+    }
+    drop(client); // keep the DDS node alive until the RX threads are done with it
+    Ok(())
+}
+
+fn render_state(backend: &str, snap: &Snapshot, unavailable: &[&'static str], json: bool) {
+    use std::io::{IsTerminal, Write};
+    let g = snap.lock().unwrap();
+
+    if json {
+        let obj: serde_json::Map<String, serde_json::Value> = STATE_TOPICS
+            .iter()
+            .map(|&(label, topic)| {
+                let v = match g.get(topic) {
+                    Some(e) => serde_json::json!({
+                        "label": label, "value": e.summary,
+                        "age_ms": e.last.elapsed().as_millis(), "count": e.count,
+                    }),
+                    None => serde_json::json!({ "label": label, "value": null }),
+                };
+                (topic.to_string(), v)
+            })
+            .collect();
+        println!("{}", serde_json::to_string(&obj).unwrap());
+        return;
+    }
+
+    let tty = std::io::stdout().is_terminal();
+    let dot = |code: &str| {
+        if tty {
+            format!("\x1b[{code}m●\x1b[0m")
+        } else {
+            "*".to_string()
+        }
+    };
+    let dim = |s: &str| {
+        if tty {
+            format!("\x1b[31m{s}\x1b[0m")
+        } else {
+            s.to_string()
+        }
+    };
+
+    let stale = Duration::from_secs_f64(dv_contract::STALENESS_WATCHDOG_S);
+    let mut out = String::new();
+    if tty {
+        out.push_str("\x1b[H\x1b[J"); // cursor home + clear to end
+    }
+    out.push_str(&format!(
+        "MingoROS · DV state   backend:{backend}   (Ctrl-C to exit)\n"
+    ));
+    out.push_str(&"─".repeat(76));
+    out.push('\n');
+    for &(label, topic) in STATE_TOPICS {
+        let (marker, value, age) = match g.get(topic) {
+            Some(e) => {
+                let secs = e.last.elapsed().as_secs_f64();
+                if e.last.elapsed() > stale {
+                    (
+                        dot("31"),
+                        e.summary.clone(),
+                        dim(&format!("{secs:.1}s stale")),
+                    )
+                } else {
+                    (dot("32"), e.summary.clone(), format!("{secs:.1}s"))
+                }
+            }
+            None if unavailable.contains(&topic) => (
+                dot("90"),
+                "(unavailable on this backend)".to_string(),
+                String::new(),
+            ),
+            None => (dot("90"), "(waiting…)".to_string(), String::new()),
+        };
+        out.push_str(&format!(
+            "  {marker} {label:<9} {topic:<13} {value}  {age}\n"
+        ));
+    }
+    out.push_str(&"─".repeat(76));
+    out.push('\n');
+    print!("{out}");
+    let _ = std::io::stdout().flush();
 }
 
 fn cmd_publish(backend: Backend, topic: &str, value: &str, force: bool) -> Result<()> {

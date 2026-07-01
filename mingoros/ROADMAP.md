@@ -56,7 +56,10 @@ debugging only**; raw CAN stays MingoCAN's job.
       of `visualization_msgs/MarkerArray` (`/Conos`). Not a QoS gap; a viz item.
       LiDAR/PointCloud2 is out of scope entirely.
 
-### Phase 3 — uDV link + flash
+### Phase 3 — uDV link
+> Firmware flashing is **out of scope** — MingoROS is a debugger/bridge, not a
+> flasher. Flash the uDV with STM32CubeProgrammer / dfu-util as before.
+
 - [x] Robust uDV detect (`mingoros udv`): enumerate USB serial ports, rank on
       VID/PID `0483:5740` + product/serial/manufacturer name hints (the
       generic-ST-CDC disambiguator). Pure ranking fn, unit-tested.
@@ -66,8 +69,6 @@ debugging only**; raw CAN stays MingoCAN's job.
       `udv` → `agent --dev /dev/ttyACMx` → `state --backend ros2`.
 - [ ] *(needs hardware to verify live)* XRCE-session state parsing from the
       agent's output; confirm the exact uDV product/iSerial string (usbd_desc.c).
-- [ ] uDV **SWD/DFU** flash (probe-rs or CubeProgrammer/OpenOCD/dfu-util),
-      hard-separated in the UI from the AMS/ECU CAN-bootloader flow.
 
 ### Phase 4 — Control plane + bag + dashboard
 - [ ] Services/actions: `ActivateMode` (mode bring-up), `StartBag`/`StopBag`.
@@ -90,5 +91,3 @@ debugging only**; raw CAN stays MingoCAN's job.
   pipeline node sources; pin it in `dv_contract` as it's confirmed.
 - **`foxglove_bridge` is sim-only** (launched only in the UE5 sim, whitelisted,
   excludes the mission-state bytes) — not a car transport, so not the MVP path.
-- **uDV is SWD/DFU-flashed** (links at `0x08000000`, no CAN bootloader) —
-  different from the AMS/ECU CAN-BL flow.

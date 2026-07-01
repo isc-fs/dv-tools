@@ -1,0 +1,35 @@
+# MingoROS — Cargo workspace.
+#
+# Layout mirrors isc-fs/can-flasher (MingoCAN): a shared core library that
+# the CLI (and, later, a Tauri desktop app) link by path. The CAN-side
+# transport/replay code is a planned lift from can-flasher; the ROS layer is
+# the genuinely new part and lives in `mingoros-core::ros`.
+[workspace]
+resolver = "2"
+members = [
+    "crates/mingoros-core",
+    "crates/mingoros-cli",
+    # "apps/mingoros-studio/src-tauri",  # Tauri GUI shell — later phase.
+]
+
+[workspace.package]
+edition      = "2021"
+rust-version = "1.95"
+license      = "MIT"
+repository   = "https://github.com/isc-fs/dv-tools"
+authors      = ["ISC Racing Team — IFS08 Driverless"]
+
+[workspace.dependencies]
+anyhow             = "1.0"
+thiserror          = "2.0"
+serde              = { version = "1.0", features = ["derive"] }
+serde_json         = "1.0"
+clap               = { version = "4.5", features = ["derive", "wrap_help"] }
+tracing            = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+mingoros-core      = { path = "crates/mingoros-core" }
+
+[profile.release]
+lto       = true
+strip     = true
+codegen-units = 1

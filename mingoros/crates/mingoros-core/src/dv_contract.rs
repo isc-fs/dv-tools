@@ -102,6 +102,87 @@ impl RawAsState {
 }
 
 // ---------------------------------------------------------------------------
+// RES status — /res/status  (std_msgs/Int32, uDV feat/15 ros_task.c)
+//
+// The Remote Emergency System PDO status. The GO/ESTOP here gate the AS state
+// machine, so it's a top-priority signal when debugging a stopped car.
+// ---------------------------------------------------------------------------
+
+/// Coded RES status carried on [`TOPIC_RES_STATUS`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub enum ResStatus {
+    Ok,      // 0  — received, no e-stop / go
+    Estop,   // 1  — emergency stop asserted
+    Go,      // 2  — go signal active
+    Timeout, // -1 — RES PDO stale
+    None,    // -2 — never received
+}
+
+impl ResStatus {
+    pub const fn from_i32(v: i32) -> Option<Self> {
+        match v {
+            0 => Some(Self::Ok),
+            1 => Some(Self::Estop),
+            2 => Some(Self::Go),
+            -1 => Some(Self::Timeout),
+            -2 => Some(Self::None),
+            _ => None,
+        }
+    }
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Ok => "OK",
+            Self::Estop => "ESTOP",
+            Self::Go => "GO",
+            Self::Timeout => "TIMEOUT",
+            Self::None => "NONE",
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// AS state-machine signal word — the 10 safety booleans the uDV packs and
+// formats onto /debug. Mirror of the AS_SIG_* bits in the firmware's
+// `Core/Inc/as_state.h` (feat/15). These — ASMS / TS / EBS / SDC / R2D — are
+// THE signals to watch when commissioning a stopped car.
+// ---------------------------------------------------------------------------
+
+/// Bit positions of the uDV state-machine signal word (`ros_get_state_signals`).
+pub mod state_signal {
+    pub const ASMS_ON: u16 = 1 << 0; // Autonomous System Master Switch on
+    pub const TS_ACTIVE: u16 = 1 << 1; // Tractive System active
+    pub const SDC_RES_OPEN: u16 = 1 << 2; // Shutdown Circuit / RES open
+    pub const EBS_ACTIVATED: u16 = 1 << 3; // Emergency Brake System engaged
+    pub const ABS_CHECKS_OK: u16 = 1 << 4; // ASB self-checks passed
+    pub const BRAKES_ENGAGED: u16 = 1 << 5;
+    pub const MISSION_SEL: u16 = 1 << 6; // a mission is selected
+    pub const R2D: u16 = 1 << 7; // Ready to Drive
+    pub const STANDSTILL: u16 = 1 << 8; // vehicle at standstill
+    pub const MISSION_DONE: u16 = 1 << 9;
+}
+
+/// Render a state-machine signal word as the firmware's `/debug` labels — so a
+/// numeric signal source (if one is ever exposed) reads the same as `/debug`.
+pub fn describe_state_signals(sig: u16) -> String {
+    use state_signal as s;
+    let f = |bit: u16, on: &'static str, off: &'static str| if sig & bit != 0 { on } else { off };
+    format!(
+        "ASMS:{} TS:{} SDC:{} EBS:{} ABS:{} | brakes:{} mission:{} R2D:{} motion:{} finished:{}",
+        f(s::ASMS_ON, "on", "off"),
+        f(s::TS_ACTIVE, "on", "off"),
+        f(s::SDC_RES_OPEN, "open", "closed"),
+        f(s::EBS_ACTIVATED, "on", "off"),
+        f(s::ABS_CHECKS_OK, "ok", "fail"),
+        f(s::BRAKES_ENGAGED, "on", "off"),
+        f(s::MISSION_SEL, "set", "unset"),
+        f(s::R2D, "on", "off"),
+        f(s::STANDSTILL, "standstill", "moving"),
+        f(s::MISSION_DONE, "yes", "no"),
+    )
+}
+
+// ---------------------------------------------------------------------------
 // Pipeline lifecycle — /dv/status  (std_msgs/UInt8)
 //
 // The pipeline's own lifecycle, reported back to the uDV as the prepare/run
@@ -520,6 +601,12 @@ pub const KNOWN_TOPICS: &[TopicSpec] = &[
         note: "RES go: 0=no GO, 1=GO (BEST_EFFORT)",
     },
     TopicSpec {
+        name: TOPIC_DEBUG,
+        type_name: "std_msgs/msg/String",
+        direction: Direction::Uplink,
+        note: "★ safety/state dashboard: AS || ASMS/TS/SDC/EBS/ABS || R2D/... || RES",
+    },
+    TopicSpec {
         name: TOPIC_DV_STATUS,
         type_name: "std_msgs/msg/UInt8",
         direction: Direction::Downlink,
@@ -670,6 +757,33 @@ mod tests {
         assert_eq!(RawAsState::Ready as u8, 1);
         assert_eq!(AsState::Emergency.as_u8(), 1);
         assert_ne!(RawAsState::Ready as u8, AsState::Ready.as_u8());
+    }
+
+    #[test]
+    fn res_status_codes_match_firmware() {
+        // ros_task.c res_status_name(): 0 OK, 1 ESTOP, 2 GO, -1 TIMEOUT, -2 NONE
+        assert_eq!(ResStatus::from_i32(0).unwrap().label(), "OK");
+        assert_eq!(ResStatus::from_i32(1).unwrap().label(), "ESTOP");
+        assert_eq!(ResStatus::from_i32(2).unwrap().label(), "GO");
+        assert_eq!(ResStatus::from_i32(-1).unwrap().label(), "TIMEOUT");
+        assert_eq!(ResStatus::from_i32(-2).unwrap().label(), "NONE");
+        assert!(ResStatus::from_i32(9).is_none());
+    }
+
+    #[test]
+    fn state_signal_bits_and_render() {
+        use state_signal as s;
+        // Bit positions match as_state.h AS_SIG_* order.
+        assert_eq!(s::ASMS_ON, 1);
+        assert_eq!(s::TS_ACTIVE, 2);
+        assert_eq!(s::EBS_ACTIVATED, 8);
+        assert_eq!(s::MISSION_DONE, 1 << 9);
+        // Render mirrors the firmware's /debug labels.
+        let out = describe_state_signals(s::ASMS_ON | s::TS_ACTIVE | s::EBS_ACTIVATED);
+        assert!(out.contains("ASMS:on"));
+        assert!(out.contains("TS:on"));
+        assert!(out.contains("EBS:on"));
+        assert!(out.contains("R2D:off"));
     }
 
     #[test]

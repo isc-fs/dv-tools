@@ -126,6 +126,25 @@ fn synth_summary(topic: &str, seq: u64) -> String {
                 .unwrap_or("none");
             format!("data: {ami}  (→ mission_id {mid} {name})")
         }
+        dv_contract::TOPIC_DEBUG => {
+            // A plausible safety dashboard: ASMS+TS+R2D+standstill latch on as
+            // the sequence advances, EBS stays off — like a stopped bring-up.
+            use dv_contract::state_signal as s;
+            let mut sig = s::SDC_RES_OPEN | s::MISSION_SEL;
+            if seq >= 1 {
+                sig |= s::ASMS_ON | s::TS_ACTIVE | s::STANDSTILL;
+                sig &= !s::SDC_RES_OPEN;
+            }
+            if seq >= 3 {
+                sig |= s::ABS_CHECKS_OK | s::R2D;
+            }
+            let as_name = if seq >= 3 { "AS_READY" } else { "AS_OFF" };
+            format!(
+                "AS {as_name} || {} || RES:{}",
+                dv_contract::describe_state_signals(sig),
+                if seq >= 3 { "GO" } else { "OK" }
+            )
+        }
         dv_contract::TOPIC_CTRL_CMD => {
             let t = ((seq as f64) * 0.2).sin();
             let s = ((seq as f64) * 0.1).cos() * 0.3;

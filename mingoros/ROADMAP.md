@@ -21,6 +21,12 @@ debugging only**; raw CAN stays MingoCAN's job.
 - [x] CLI: `topics`, `echo`, `hz`, `pub` (with the actuation safety gate);
       `bag`/`adapters`/`monitor` stubbed with roadmap pointers.
 
+> **Scope reality (car STOPPED):** MingoROS is used to commission a *stationary*
+> car, so the priority surface is the **state machine + safety/mission signals**
+> (AS state, ASMS, TS, SDC/RES, EBS, R2D, mission, `/dv/status`), *not* the
+> motion/perception topics (pose, odom, cones, control). The latter are decoded
+> for completeness but are not the focus.
+
 ### Phase 2 — ROS transport via ros2-client/RustDDS  (`feat/2`) — the biggest bet
 - [x] **QoS-validation spike — PASS** (see [SPIKE.md](SPIKE.md)). Proven against
       IFSSIM's live `rmw_fastrtps` graph: cross-vendor discovery (~50 topics),
@@ -40,11 +46,15 @@ debugging only**; raw CAN stays MingoCAN's job.
       (`/odom`, `/slam/pose` → x,y,yaw), `sensor_msgs/Imu` (`/imu`), plus
       `geometry_msgs/Twist` + `fs_msgs/ControlCommand` decoders. Prefix-struct
       trick reads leading fields, skipping `[f64;36]` covariance.
-- [ ] Cone-map data: decode `visualization_msgs/MarkerArray` (`/Conos`) — the
-      signature viz feature. (Note: *not* a QoS gap — none of the pipeline's
-      RELIABLE topics exceed the DDS fragmentation threshold; the only huge
-      sample, `/lidar/Lidar1` PointCloud2, is BEST_EFFORT. So "reliable-large
-      fragmentation" is effectively N/A here — this is a coverage/viz item.)
+- [x] **Safety / state-machine surface (the priority for stopped-car bring-up):**
+      `/debug` (the uDV dashboard string: AS ‖ ASMS/TS/SDC/EBS/ABS ‖
+      brakes/mission/R2D/motion/finished ‖ RES ‖ EBSinit), `/res/status`
+      (OK/ESTOP/GO/TIMEOUT/NONE), `/res/go`. `dv_contract` now mirrors the
+      firmware's `AS_SIG_*` signal word (`as_state.h`) + RES codes, with a
+      `describe_state_signals()` renderer and parity tests.
+- [ ] *(deprioritized — perception, only relevant when moving)* Cone-map decode
+      of `visualization_msgs/MarkerArray` (`/Conos`). Not a QoS gap; a viz item.
+      LiDAR/PointCloud2 is out of scope entirely.
 
 ### Phase 3 — uDV link + flash
 - [ ] `micro_ros_agent` subprocess manager (spawn/own the serial agent, surface

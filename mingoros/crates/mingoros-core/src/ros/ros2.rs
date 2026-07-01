@@ -205,14 +205,40 @@ impl RosClient for Ros2Client {
                     format!("data: {} (→ mission_id {mid} {name})", m.data)
                 },
             ),
-            dv_contract::TOPIC_RES_STATUS | dv_contract::TOPIC_RES_GO => self
-                .subscribe_typed::<msgs::Int32>(
-                    topic,
-                    "std_msgs",
-                    "Int32",
-                    qos_best_effort(),
-                    |m| format!("data: {}", m.data),
-                ),
+            // RES status — decoded to the coded name (OK/ESTOP/GO/...).
+            dv_contract::TOPIC_RES_STATUS => self.subscribe_typed::<msgs::Int32>(
+                topic,
+                "std_msgs",
+                "Int32",
+                qos_best_effort(),
+                |m| match dv_contract::ResStatus::from_i32(m.data) {
+                    Some(r) => format!("data: {} ({})", m.data, r.label()),
+                    None => format!("data: {} (?)", m.data),
+                },
+            ),
+            dv_contract::TOPIC_RES_GO => self.subscribe_typed::<msgs::Int32>(
+                topic,
+                "std_msgs",
+                "Int32",
+                qos_best_effort(),
+                |m| {
+                    format!(
+                        "data: {} ({})",
+                        m.data,
+                        if m.data != 0 { "GO" } else { "no-GO" }
+                    )
+                },
+            ),
+            // /debug — the uDV safety/state-machine dashboard string
+            // (AS state || ASMS/TS/SDC/EBS/ABS || brakes/mission/R2D/... || RES).
+            // THE topic to watch when commissioning a stopped car.
+            dv_contract::TOPIC_DEBUG => self.subscribe_typed::<msgs::StringMsg>(
+                topic,
+                "std_msgs",
+                "String",
+                qos_reliable_volatile(),
+                |m| m.data.clone(),
+            ),
             // Pose / odometry (RELIABLE) — decoded to x, y, yaw.
             dv_contract::TOPIC_SLAM_POSE
             | dv_contract::TOPIC_ODOM

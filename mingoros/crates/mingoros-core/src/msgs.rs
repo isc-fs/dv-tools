@@ -34,6 +34,12 @@ pub struct Int32 {
     pub data: i32,
 }
 
+/// `std_msgs/String` — `string data`. The uDV `/debug` safety/state dashboard.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StringMsg {
+    pub data: String,
+}
+
 /// `geometry_msgs/Point` — `float64 x, y, z`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Point {

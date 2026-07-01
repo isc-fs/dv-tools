@@ -1,0 +1,23 @@
+[package]
+name         = "mingoros-core"
+version      = "0.1.0"
+description  = "Core library for MingoROS — the DV-stack ROS2 topic debugger"
+edition      .workspace = true
+rust-version .workspace = true
+license      .workspace = true
+repository   .workspace = true
+authors      .workspace = true
+
+[dependencies]
+anyhow    .workspace = true
+thiserror .workspace = true
+serde     .workspace = true
+tracing   .workspace = true
+
+[features]
+default = []
+# Real ROS2 transport (ros2-client / RustDDS), added in a follow-up branch
+# (feat/2) once the QoS-validation spike settles. Declared now so the CLI and
+# tests can already gate on `--features ros2`; the module behind it is a stub
+# until the spike lands. See ROADMAP.md.
+ros2 = []

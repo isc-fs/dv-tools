@@ -72,8 +72,12 @@ debugging only**; raw CAN stays MingoCAN's job.
 - [ ] `bag` record/replay of a bench session (rosbag2 / mcap).
 
 ### Phase 5 — GUI + release
-- [ ] Tauri 2 + Svelte 5 shell (`apps/mingoros-studio`), forked from can-studio;
-      streaming-command pattern; `ts-rs`/`tauri-specta` for Rust↔TS types.
+- [x] **Web dashboard (`mingoros serve`)** — the UI, delivered. A tiny embedded
+      HTTP server hosts the `state` view as a browser page (NOMINAL/stale/FAULT
+      banner, freshness dots, danger-red), polling a JSON snapshot. No external
+      assets; runs offline in the container. Reuses `mingoros-core` directly.
+- [ ] *(optional)* native desktop shell (Tauri) if a windowed app is wanted;
+      the web dashboard already covers the bench use case.
 - [ ] Signed cross-platform bundles (with the Linux-only feature matrix made
       explicit: the micro-ROS agent / rclrs are Linux+Pi only).
 

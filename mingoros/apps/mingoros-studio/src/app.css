@@ -1131,6 +1131,32 @@ tr.stale .tag {
     }
 }
 
+/* ---- persistent safety strip (car must be on stands) ---- */
+.safety-strip {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 20px;
+    font-size: 12px;
+    line-height: 1.35;
+    color: var(--hold-ink);
+    background: var(--hold-bg);
+    border-bottom: 1px solid var(--hold-line);
+    box-shadow: inset 0 2px 0 var(--hold);
+}
+.safety-strip b {
+    color: var(--hold);
+    letter-spacing: 0.4px;
+}
+.safety-strip .warn-glyph {
+    flex: none;
+    color: var(--hold);
+    font-size: 13px;
+}
+
 /* ---- connection bar: domain / interface inputs + error chip ---- */
 .conn .dom-in {
     width: 46px;

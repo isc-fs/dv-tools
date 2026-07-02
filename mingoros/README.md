@@ -11,6 +11,12 @@ laptop (pure-Rust RustDDS).
 Targets the [uDV](https://github.com/isc-fs/IFS08-DV-uDV) micro-ROS gateway and
 the [DV pipeline](https://github.com/isc-fs/IFS08-DV_PIPELINE) ROS 2 graph.
 
+> ### ⚠️ Safety — car on stands, wheels off the ground, **always**
+> MingoROS can command **actuation** — Force EBS, and `pub` to control / mission
+> topics (a throttle command **will move the car**). A stray or mistaken command
+> must never be able to drive the wheels. Only ever use MingoROS on a car that is
+> **jacked up and freewheeling**, never with the wheels able to touch down.
+
 ## Install
 
 Download the latest from

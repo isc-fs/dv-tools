@@ -61,12 +61,12 @@ Two implementation notes that mattered:
 - Discovery/durability need a few seconds to settle (`DISCOVERY_SETTLE=3s`,
   `RECV_TIMEOUT=20s`).
 
+> Note: `/Conos`, `/cone_slam/gt_error_m` and `/testing_only/track` above were
+> convenient IFSSIM test vehicles for the QoS classes — perception/cones are now
+> **out of scope**, so those topics are no longer in the tool's catalogue. The
+> QoS results (discovery, reliable, latched) stand regardless of topic.
+
 ## Still open (follow-up, not blocking)
 
-- **Large reliable-sample fragmentation** — `/Conos` (`visualization_msgs/
-  MarkerArray`) and `/lidar/Lidar1` (`PointCloud2`) are big reliable samples;
-  decoding them needs the full nested types (MarkerArray/PointCloud2), which
-  this spike did not implement. Reliable-*small* is proven; reliable-*large*
-  fragmentation across the vendor boundary is the remaining QoS sub-case.
 - **Publishing** — the `ros2` backend is read-only for now (safe default on a
   live graph). Publish + the actuation safety gate come with the control plane.

@@ -2,8 +2,8 @@
 //!
 //! Core library for **MingoROS** — the DV-stack ROS2 topic debugger. MingoCAN
 //! (`isc-fs/can-flasher`) is to CAN frames what MingoROS is to ROS topics:
-//! list / echo / hz / publish / record, plus a live cone-map & mission-state
-//! dashboard.
+//! list / echo / hz / publish, plus a live safety/state dashboard for
+//! stopped-car commissioning.
 //!
 //! ## Modules
 //! - [`dv_contract`] — the single source of truth for the uDV ↔ pipeline

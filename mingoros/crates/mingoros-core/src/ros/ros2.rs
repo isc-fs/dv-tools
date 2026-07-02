@@ -124,16 +124,15 @@ impl RosClient for Ros2Client {
 
     fn subscribe(&self, topic: &str) -> Result<Box<dyn SampleStream>, RosError> {
         match topic {
-            // Reliable/volatile small scalars (SLAM diag, control setpoints).
-            dv_contract::TOPIC_CONE_SLAM_GT_ERROR
-            | dv_contract::TOPIC_CTRL_V_SET
-            | dv_contract::TOPIC_CTRL_KAPPA_MAX => self.subscribe_typed::<msgs::Float32>(
-                topic,
-                "std_msgs",
-                "Float32",
-                qos_reliable_volatile(),
-                |m| format!("data: {:.4}", m.data),
-            ),
+            // Reliable/volatile control setpoint scalars.
+            dv_contract::TOPIC_CTRL_V_SET | dv_contract::TOPIC_CTRL_KAPPA_MAX => self
+                .subscribe_typed::<msgs::Float32>(
+                    topic,
+                    "std_msgs",
+                    "Float32",
+                    qos_reliable_volatile(),
+                    |m| format!("data: {:.4}", m.data),
+                ),
             // Best-effort high-rate scalars (sim sensor feeds).
             dv_contract::TOPIC_MOTOR_RPM | dv_contract::TOPIC_STEERING => self
                 .subscribe_typed::<msgs::Float32>(
@@ -143,12 +142,6 @@ impl RosClient for Ros2Client {
                     qos_best_effort(),
                     |m| format!("data: {:.4}", m.data),
                 ),
-            // THE latched (RELIABLE/TRANSIENT_LOCAL) durability target.
-            dv_contract::TOPIC_TESTING_TRACK => {
-                self.subscribe_typed::<msgs::Track>(topic, "fs_msgs", "Track", qos_latched(), |m| {
-                    format!("Track: {} cones (latched)", m.track.len())
-                })
-            }
             // Latched std_msgs/Bool topics (+ a bench test topic) — the
             // TRANSIENT_LOCAL durability proof against a retaining writer.
             dv_contract::TOPIC_CTRL_EMERGENCY
@@ -303,9 +296,9 @@ impl RosClient for Ros2Client {
                     },
                 ),
             other => Err(RosError::Other(format!(
-                "ros2 backend does not yet decode {other} — the QoS spike decodes \
-                 std_msgs/Float32 topics and the latched fs_msgs/Track. \
-                 (MarkerArray / full type coverage is follow-up work.)"
+                "ros2 backend does not decode {other} yet — decoded types: the uDV state \
+                 bytes, RES codes, /debug, nav_msgs/Odometry, sensor_msgs/Imu, \
+                 geometry_msgs/Twist, fs_msgs/ControlCommand, std_msgs scalars."
             ))),
         }
     }
@@ -378,8 +371,8 @@ fn qos_best_effort() -> QosPolicies {
 }
 
 /// RELIABLE + TRANSIENT_LOCAL — the latched profile a late joiner needs to
-/// still receive the last retained sample of (`/testing_only/track`,
-/// `/dv/status`, `/ctrl/emergency`).
+/// still receive the last retained sample of (`/dv/status`, `/ctrl/emergency`,
+/// `/slam/finished`).
 fn qos_latched() -> QosPolicies {
     QosPolicyBuilder::new()
         .history(policy::History::KeepLast { depth: 1 })
@@ -390,7 +383,7 @@ fn qos_latched() -> QosPolicies {
         .build()
 }
 
-/// DDS type name → ROS type name: `fs_msgs::msg::dds_::Track_` → `fs_msgs/msg/Track`.
+/// DDS type name → ROS type name: `std_msgs::msg::dds_::UInt8_` → `std_msgs/msg/UInt8`.
 fn demangle_type(dds: &str) -> String {
     let s = dds.replace("::dds_::", "::").replace("::", "/");
     s.strip_suffix('_').unwrap_or(&s).to_string()

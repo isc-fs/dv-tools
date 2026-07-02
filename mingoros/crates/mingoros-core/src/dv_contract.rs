@@ -337,34 +337,6 @@ pub enum SimIntent {
 }
 
 // ---------------------------------------------------------------------------
-// Cone colours — fs_msgs/msg/Cone.msg
-// ---------------------------------------------------------------------------
-
-/// Cone colour enum from `fs_msgs/Cone`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[repr(u8)]
-pub enum ConeColor {
-    Yellow = 0,
-    Blue = 1,
-    OrangeBig = 2,
-    OrangeSmall = 3,
-    Unknown = 4,
-}
-
-impl ConeColor {
-    pub const fn from_u8(v: u8) -> Option<Self> {
-        match v {
-            0 => Some(Self::Yellow),
-            1 => Some(Self::Blue),
-            2 => Some(Self::OrangeBig),
-            3 => Some(Self::OrangeSmall),
-            4 => Some(Self::Unknown),
-            _ => None,
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
 // Topic / service names — single source of truth (never string-literal a
 // topic name at a call site; reference these).
 // ---------------------------------------------------------------------------
@@ -407,11 +379,8 @@ pub const TOPIC_SIM_MISSION: &str = "/sim/mission";
 pub const TOPIC_SIM_INTENT: &str = "/sim/intent";
 pub const TOPIC_SIM_ESTOP: &str = "/sim/estop";
 
-// Autonomy outputs a debugger visualises.
-pub const TOPIC_CONES_RAW: &str = "/Conos_raw"; // MarkerArray
-pub const TOPIC_CONES_ORANGE: &str = "/Conos_Orange"; // MarkerArray
-pub const TOPIC_CONES: &str = "/Conos"; // MarkerArray
-pub const TOPIC_CONES_FULL: &str = "/Conos_full"; // MarkerArray
+// Autonomy motion outputs (decoded for completeness; perception/cones are
+// out of scope — MingoROS is a stopped-car safety/state tool).
 pub const TOPIC_SLAM_POSE: &str = "/slam/pose"; // nav_msgs/Odometry
 pub const TOPIC_ODOM: &str = "/odom"; // nav_msgs/Odometry
 pub const TOPIC_PATH: &str = "/Path"; // nav_msgs/Path
@@ -422,13 +391,11 @@ pub const TOPIC_PATH: &str = "/Path"; // nav_msgs/Path
 // IFSSIM vendors an OLDER pipeline than the uDV stock interface above: it has
 // NO /dv/status, /assi/state, /ami/mission, /force_ebs. These are what the
 // IFSSIM bag replay + live pipeline actually publish (confirmed live via
-// `ros2 topic info -v`). Shared with the car: /Conos*, /odom, /Path,
-// /slam/pose. Sim-specific below. See [[project_mingoros]] IFSSIM notes.
+// `ros2 topic info -v`). Shared with the car: /odom, /Path, /slam/pose.
+// Sim-specific below. See [[project_mingoros]] IFSSIM notes.
 // ---------------------------------------------------------------------------
 pub const TOPIC_SIM_IMU: &str = "/imu"; // sensor_msgs/Imu (same name as uDV feat/15 — coincides)
-pub const TOPIC_TESTING_TRACK: &str = "/testing_only/track"; // fs_msgs/Track — RELIABLE/TRANSIENT_LOCAL (latched)
 pub const TOPIC_TESTING_ODOM: &str = "/testing_only/odom"; // nav_msgs/Odometry (ground truth, best-effort)
-pub const TOPIC_CONE_SLAM_GT_ERROR: &str = "/cone_slam/gt_error_m"; // std_msgs/Float32 (SLAM accuracy diag)
 pub const TOPIC_CTRL_V_SET: &str = "/control/v_set_mps"; // std_msgs/Float32
 pub const TOPIC_CTRL_KAPPA_MAX: &str = "/control/kappa_max_per_m"; // std_msgs/Float32
 pub const TOPIC_CTRL_CMD_INTERNAL: &str = "/ctrl/cmd_internal"; // fs_msgs/ControlCommand
@@ -487,7 +454,7 @@ impl Qos {
         Self::new(Reliability::BestEffort, Durability::Volatile, depth)
     }
 
-    /// RELIABLE + VOLATILE. Cone MarkerArrays.
+    /// RELIABLE + VOLATILE.
     pub const fn reliable(depth: u16) -> Self {
         Self::new(Reliability::Reliable, Durability::Volatile, depth)
     }
@@ -519,17 +486,12 @@ pub fn recommended_qos(topic: &str) -> Option<Qos> {
         // uDV reliable publishers.
         TOPIC_IMU_STATUS | TOPIC_DEBUG => Qos::reliable(10),
         TOPIC_IMU => Qos::sensor(10),
-        TOPIC_CONES_RAW | TOPIC_CONES_ORANGE | TOPIC_CONES | TOPIC_CONES_FULL => Qos::reliable(10),
         TOPIC_SLAM_POSE | TOPIC_ODOM | TOPIC_PATH => Qos::reliable(10),
         // --- IFSSIM / sim surface (confirmed live via `ros2 topic info -v`) ---
-        TOPIC_TESTING_TRACK | TOPIC_CTRL_EMERGENCY | TOPIC_SIGNAL_EBS | TOPIC_SLAM_FINISHED => {
-            Qos::latched(1)
+        TOPIC_CTRL_EMERGENCY | TOPIC_SIGNAL_EBS | TOPIC_SLAM_FINISHED => Qos::latched(1),
+        TOPIC_CTRL_V_SET | TOPIC_CTRL_KAPPA_MAX | TOPIC_CTRL_CMD_INTERNAL | TOPIC_SIGNAL_GO => {
+            Qos::reliable(10)
         }
-        TOPIC_CONE_SLAM_GT_ERROR
-        | TOPIC_CTRL_V_SET
-        | TOPIC_CTRL_KAPPA_MAX
-        | TOPIC_CTRL_CMD_INTERNAL
-        | TOPIC_SIGNAL_GO => Qos::reliable(10),
         // (TOPIC_SIM_IMU == TOPIC_IMU == "/imu", already handled above.)
         TOPIC_MOTOR_RPM | TOPIC_STEERING | TOPIC_TESTING_ODOM => Qos::sensor(10),
         _ => return None,
@@ -637,18 +599,6 @@ pub const KNOWN_TOPICS: &[TopicSpec] = &[
         note: "motor-shaft RPM (uDV reads inverter CAN)",
     },
     TopicSpec {
-        name: TOPIC_CONES,
-        type_name: "visualization_msgs/msg/MarkerArray",
-        direction: Direction::Observe,
-        note: "SLAM cone map",
-    },
-    TopicSpec {
-        name: TOPIC_CONES_RAW,
-        type_name: "visualization_msgs/msg/MarkerArray",
-        direction: Direction::Observe,
-        note: "per-frame detected cones",
-    },
-    TopicSpec {
         name: TOPIC_SLAM_POSE,
         type_name: "nav_msgs/msg/Odometry",
         direction: Direction::Observe,
@@ -718,15 +668,6 @@ mod tests {
         // Out-of-range / negative never panics, always "no mission".
         assert_eq!(ami_index_to_mission_id(42), 0);
         assert_eq!(ami_index_to_mission_id(-1), 0);
-    }
-
-    #[test]
-    fn cone_colors_match_msg() {
-        assert_eq!(ConeColor::Yellow as u8, 0);
-        assert_eq!(ConeColor::Blue as u8, 1);
-        assert_eq!(ConeColor::OrangeBig as u8, 2);
-        assert_eq!(ConeColor::OrangeSmall as u8, 3);
-        assert_eq!(ConeColor::Unknown as u8, 4);
     }
 
     // --- uDV feat/15 firmware ground truth ---

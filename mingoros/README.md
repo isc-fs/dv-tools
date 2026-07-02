@@ -2,9 +2,9 @@
 
 **ROS2 topic debugger for the IFS08 Driverless stack.** MingoCAN
 ([`isc-fs/can-flasher`](https://github.com/isc-fs/can-flasher)) is to CAN
-frames what MingoROS is to ROS topics: `list` / `echo` / `hz` / `pub` /
-`record`, plus (later) a live cone-map & mission-state dashboard — one Rust
-tool instead of the scattered `ros2 topic …` / `rqt` / Foxglove dance.
+frames what MingoROS is to ROS topics: `topics` / `echo` / `hz` / `pub`, plus a
+live **safety/state dashboard** for stopped-car commissioning — one Rust tool
+instead of the scattered `ros2 topic …` / `rqt` / Foxglove dance.
 
 Targets the [uDV](https://github.com/isc-fs/IFS08-DV-uDV) micro-ROS gateway and
 the [DV pipeline](https://github.com/isc-fs/IFS08-DV_PIPELINE) ROS2 graph.
@@ -61,12 +61,13 @@ docker build -t mingoros:ros2 mingoros/
 # with IFSSIM's dv_pipeline_stack up + a bag replaying:
 docker run --rm --network host -e ROS_DOMAIN_ID=0 mingoros:ros2 --backend ros2 topics
 docker run --rm --network host -e ROS_DOMAIN_ID=0 mingoros:ros2 \
-    --backend ros2 echo /cone_slam/gt_error_m --count 5
+    --backend ros2 echo /slam/pose --count 5
 ```
 
 Read-only for now; typed decode covers the state bytes (AS/DV/RES/mission),
 `nav_msgs/Odometry`, `sensor_msgs/Imu`, `geometry_msgs/Twist`,
-`fs_msgs/{Track,ControlCommand}`, and the uDV `/debug` safety string.
+`fs_msgs/ControlCommand`, and the uDV `/debug` safety string. Perception/cones
+are out of scope.
 
 ## On the bench with a real uDV
 

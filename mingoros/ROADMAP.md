@@ -47,8 +47,9 @@ debugging only**; raw CAN stays MingoCAN's job.
       `geometry_msgs/Twist` + `fs_msgs/ControlCommand` decoders. Prefix-struct
       trick reads leading fields, skipping `[f64;36]` covariance.
 - [x] **Safety / state-machine surface (the priority for stopped-car bring-up):**
-      `/debug` (the uDV dashboard string: AS ‖ ASMS/TS/SDC/EBS/ABS ‖
-      brakes/mission/R2D/motion/finished ‖ RES ‖ EBSinit), `/res/status`
+      `/debug` (the uDV dashboard string: AS ‖ ASMS/TS/SDC/EBS/ASB ‖
+      brakes/mission/R2D/motion/finished ‖ RES ‖ EBSinit; the wire token is
+      `ABS`, shown as `ASB` — Autonomous System Brake), `/res/status`
       (OK/ESTOP/GO/TIMEOUT/NONE), `/res/go`. `dv_contract` now mirrors the
       firmware's `AS_SIG_*` signal word (`as_state.h`) + RES codes, with a
       `describe_state_signals()` renderer and parity tests.

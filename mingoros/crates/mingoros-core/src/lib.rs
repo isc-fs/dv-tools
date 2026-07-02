@@ -15,6 +15,7 @@
 //! - `msgs` (behind `ros2`) — serde ROS2 message types the DDS backend decodes.
 
 pub mod agent;
+pub mod dashboard;
 pub mod dv_contract;
 #[cfg(feature = "ros2")]
 pub mod msgs;

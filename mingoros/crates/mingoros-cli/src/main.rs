@@ -7,6 +7,7 @@
 
 use anyhow::{bail, Result};
 use clap::{Parser, Subcommand, ValueEnum};
+use mingoros_core::dashboard;
 use mingoros_core::dv_contract::{self, Qos, Reliability};
 use mingoros_core::ros::{fake::FakeRos, RosClient};
 use std::collections::HashMap;
@@ -272,60 +273,11 @@ fn cmd_hz(backend: Backend, topic: &str, samples: u64) -> Result<()> {
     Ok(())
 }
 
-/// Priority topics for the stopped-car dashboard: (label, topic).
-const STATE_TOPICS: &[(&str, &str)] = &[
-    ("AS state", dv_contract::TOPIC_ASSI_STATE),
-    ("Raw AS", dv_contract::TOPIC_AS_STATE),
-    ("DV status", dv_contract::TOPIC_DV_STATUS),
-    ("RES", dv_contract::TOPIC_RES_STATUS),
-    ("RES go", dv_contract::TOPIC_RES_GO),
-    ("Mission", dv_contract::TOPIC_AMI_MISSION),
-    ("Safety", dv_contract::TOPIC_DEBUG),
-];
-
-/// Latest snapshot of one topic, for the freshness-aware dashboard.
-struct Entry {
-    summary: String,
-    last: Instant,
-    count: u64,
-}
-
-type Snapshot = Arc<Mutex<HashMap<&'static str, Entry>>>;
-
-/// Spawn one RX thread per priority topic, each updating the shared snapshot
-/// (the WarioCharger dashboard model). Returns the topics the backend couldn't
-/// subscribe. Shared by the terminal (`state`) and web (`serve`) dashboards.
-fn spawn_subscribers(client: &dyn RosClient, snap: &Snapshot) -> Vec<&'static str> {
-    let mut unavailable = Vec::new();
-    for &(_, topic) in STATE_TOPICS {
-        match client.subscribe(topic) {
-            Ok(mut stream) => {
-                let snap = Arc::clone(snap);
-                std::thread::spawn(move || {
-                    while let Some(s) = stream.next_sample() {
-                        let mut g = snap.lock().unwrap();
-                        let e = g.entry(topic).or_insert(Entry {
-                            summary: String::new(),
-                            last: Instant::now(),
-                            count: 0,
-                        });
-                        e.summary = s.summary;
-                        e.last = Instant::now();
-                        e.count += 1;
-                    }
-                });
-            }
-            Err(_) => unavailable.push(topic),
-        }
-    }
-    unavailable
-}
-
 fn cmd_state(backend: Backend, json: bool, duration: Option<u64>) -> Result<()> {
     let client = make_client(backend)?;
     let backend_name = client.backend_name();
-    let snap: Snapshot = Arc::new(Mutex::new(HashMap::new()));
-    let unavailable = spawn_subscribers(client.as_ref(), &snap);
+    let snap: dashboard::Snapshot = Arc::new(Mutex::new(HashMap::new()));
+    let unavailable = dashboard::spawn_subscribers(client.as_ref(), &snap);
 
     let start = Instant::now();
     loop {
@@ -344,27 +296,21 @@ fn cmd_state(backend: Backend, json: bool, duration: Option<u64>) -> Result<()> 
     Ok(())
 }
 
-fn render_state(backend: &str, snap: &Snapshot, unavailable: &[&'static str], json: bool) {
+fn render_state(
+    backend: &str,
+    snap: &dashboard::Snapshot,
+    unavailable: &[&'static str],
+    json: bool,
+) {
     use std::io::{IsTerminal, Write};
-    let g = snap.lock().unwrap();
 
     if json {
-        let obj: serde_json::Map<String, serde_json::Value> = STATE_TOPICS
-            .iter()
-            .map(|&(label, topic)| {
-                let v = match g.get(topic) {
-                    Some(e) => serde_json::json!({
-                        "label": label, "value": e.summary,
-                        "age_ms": e.last.elapsed().as_millis(), "count": e.count,
-                    }),
-                    None => serde_json::json!({ "label": label, "value": null }),
-                };
-                (topic.to_string(), v)
-            })
-            .collect();
-        println!("{}", serde_json::to_string(&obj).unwrap());
+        let rows = dashboard::snapshot(snap, unavailable);
+        println!("{}", serde_json::json!({ "topics": rows }));
         return;
     }
+
+    let g = snap.lock().unwrap();
 
     let tty = std::io::stdout().is_terminal();
     let dot = |code: &str| {
@@ -392,7 +338,7 @@ fn render_state(backend: &str, snap: &Snapshot, unavailable: &[&'static str], js
     ));
     out.push_str(&"─".repeat(76));
     out.push('\n');
-    for &(label, topic) in STATE_TOPICS {
+    for &(label, topic) in dashboard::STATE_TOPICS {
         let (marker, value, age) = match g.get(topic) {
             Some(e) => {
                 let secs = e.last.elapsed().as_secs_f64();
@@ -415,7 +361,7 @@ fn render_state(backend: &str, snap: &Snapshot, unavailable: &[&'static str], js
         };
         // Highlight danger states (EMERGENCY / ESTOP / EBS active / FAILED) in
         // bold red — the glance-and-see signal for commissioning.
-        let value = if tty && is_danger(&value) {
+        let value = if tty && dashboard::is_danger(&value) {
             format!("\x1b[1;31m{value}\x1b[0m")
         } else {
             value
@@ -433,36 +379,11 @@ fn render_state(backend: &str, snap: &Snapshot, unavailable: &[&'static str], js
 /// The embedded dashboard page (shared with the Tauri app; no external assets).
 const DASHBOARD_HTML: &str = include_str!("../../../apps/mingoros-studio/ui/index.html");
 
-/// Build the JSON the web dashboard polls: one row per priority topic with
-/// value, age, freshness and danger flags.
-fn snapshot_json(snap: &Snapshot, unavailable: &[&'static str]) -> serde_json::Value {
-    let g = snap.lock().unwrap();
-    let stale = Duration::from_secs_f64(dv_contract::STALENESS_WATCHDOG_S);
-    let rows: Vec<serde_json::Value> = STATE_TOPICS
-        .iter()
-        .map(|&(label, topic)| match g.get(topic) {
-            Some(e) => {
-                let age = e.last.elapsed();
-                serde_json::json!({
-                    "label": label, "topic": topic, "value": e.summary,
-                    "age_ms": age.as_millis() as u64, "fresh": age <= stale,
-                    "danger": is_danger(&e.summary), "state": "ok",
-                })
-            }
-            None => serde_json::json!({
-                "label": label, "topic": topic, "value": "",
-                "state": if unavailable.contains(&topic) { "unavailable" } else { "waiting" },
-            }),
-        })
-        .collect();
-    serde_json::json!({ "topics": rows })
-}
-
 fn cmd_serve(backend: Backend, port: u16) -> Result<()> {
     let client = make_client(backend)?;
     let backend_name = client.backend_name().to_string();
-    let snap: Snapshot = Arc::new(Mutex::new(HashMap::new()));
-    let unavailable = spawn_subscribers(client.as_ref(), &snap);
+    let snap: dashboard::Snapshot = Arc::new(Mutex::new(HashMap::new()));
+    let unavailable = dashboard::spawn_subscribers(client.as_ref(), &snap);
 
     let server = tiny_http::Server::http(("0.0.0.0", port))
         .map_err(|e| anyhow::anyhow!("cannot bind port {port}: {e}"))?;
@@ -475,7 +396,8 @@ fn cmd_serve(backend: Backend, port: u16) -> Result<()> {
         let (body, ctype) = match path {
             "/" => (DASHBOARD_HTML.to_string(), "text/html; charset=utf-8"),
             "/api/state" => (
-                serde_json::to_string(&snapshot_json(&snap, &unavailable)).unwrap_or_default(),
+                serde_json::json!({ "topics": dashboard::snapshot(&snap, &unavailable) })
+                    .to_string(),
                 "application/json",
             ),
             "/api/meta" => (
@@ -496,12 +418,6 @@ fn cmd_serve(backend: Backend, port: u16) -> Result<()> {
     }
     drop(client);
     Ok(())
-}
-
-/// A decoded value that signals a danger/fault state on the DV car.
-fn is_danger(value: &str) -> bool {
-    const DANGER: &[&str] = &["EMERGENCY", "ESTOP", "FAILED", "EBS:on"];
-    DANGER.iter().any(|d| value.contains(d))
 }
 
 fn cmd_udv(json: bool) -> Result<()> {
@@ -608,7 +524,7 @@ fn cmd_bag(action: BagCmd) -> Result<()> {
                 a.push("-a".into());
             } else {
                 // Default: just the priority safety/state topics.
-                for &(_, topic) in STATE_TOPICS {
+                for &(_, topic) in dashboard::STATE_TOPICS {
                     a.push(topic.to_string());
                 }
             }
@@ -671,7 +587,7 @@ fn fmt_qos(qos: Option<&Qos>) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::is_danger;
+    use mingoros_core::dashboard::is_danger;
 
     #[test]
     fn danger_states_flagged() {

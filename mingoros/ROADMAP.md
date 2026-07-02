@@ -75,12 +75,17 @@ debugging only**; raw CAN stays MingoCAN's job.
       `StartBag`/`StopBag` — only if MingoROS should *drive* the pipeline.
 
 ### Phase 5 — GUI + release
-- [x] **Web dashboard (`mingoros serve`)** — the UI, delivered. A tiny embedded
-      HTTP server hosts the `state` view as a browser page (NOMINAL/stale/FAULT
-      banner, freshness dots, danger-red), polling a JSON snapshot. No external
-      assets; runs offline in the container. Reuses `mingoros-core` directly.
-- [ ] *(optional)* native desktop shell (Tauri) if a windowed app is wanted;
-      the web dashboard already covers the bench use case.
+- [x] **Shared dashboard frontend** (`apps/mingoros-studio/ui`) — a polished
+      bench HUD (NOMINAL/stale/FAULT hero, safety tiles, `/debug` signal chips,
+      topics table). Dual transport: Tauri `invoke` or browser `fetch`.
+- [x] **Web dashboard (`mingoros serve`)** — hosts that frontend as a browser
+      page over HTTP; robust remote view (run on the car, browse from anywhere).
+- [x] **Native desktop app (`mingoros-studio`, Tauri 2)** — the same frontend +
+      `mingoros-core` in a window; joins the car's DDS graph over Ethernet
+      (`ros2` backend), auto-connects domain 0, connection bar to change it.
+      Compiles clean; run with `cargo tauri dev`. Workspace member but excluded
+      from default build/CI so core+CLI stay Tauri-free.
+- [ ] *(optional)* signed bundles / auto-update; XRCE-session parse; publish.
 - [ ] Signed cross-platform bundles (with the Linux-only feature matrix made
       explicit: the micro-ROS agent / rclrs are Linux+Pi only).
 

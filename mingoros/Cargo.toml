@@ -1,15 +1,21 @@
 # MingoROS — Cargo workspace.
 #
-# Layout mirrors isc-fs/can-flasher (MingoCAN): a shared core library that
-# the CLI (and, later, a Tauri desktop app) link by path. The CAN-side
-# transport/replay code is a planned lift from can-flasher; the ROS layer is
-# the genuinely new part and lives in `mingoros-core::ros`.
+# Layout mirrors isc-fs/can-flasher (MingoCAN): a shared core library, a CLI,
+# and a Tauri desktop app (mingoros-studio) that all link `mingoros-core`.
+#
+# The Tauri app is a workspace member but NOT a default member — plain
+# `cargo build` / CI stay on core+cli (fast, no Tauri/webkit toolchain). Build
+# the app explicitly with `cargo build -p mingoros-studio` or `cargo tauri`.
 [workspace]
 resolver = "2"
 members = [
     "crates/mingoros-core",
     "crates/mingoros-cli",
-    # "apps/mingoros-studio/src-tauri",  # Tauri GUI shell — later phase.
+    "apps/mingoros-studio/src-tauri",
+]
+default-members = [
+    "crates/mingoros-core",
+    "crates/mingoros-cli",
 ]
 
 [workspace.package]

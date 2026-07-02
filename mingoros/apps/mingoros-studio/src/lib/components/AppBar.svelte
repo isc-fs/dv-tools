@@ -7,6 +7,7 @@
 <script lang="ts">
     import type { Meta } from '../types';
     import { isTauri } from '../api';
+    import EbsControl from './EbsControl.svelte';
 
     interface Props {
         meta: Meta;
@@ -113,6 +114,7 @@
             >
         {/if}
     </div>
+    <EbsControl />
     <div class="link"><span>backend</span> <b>{backendLabel}</b></div>
     <div class="live" class:on={live} class:off={!live}>
         <span class="led"></span><span>{liveText}</span>

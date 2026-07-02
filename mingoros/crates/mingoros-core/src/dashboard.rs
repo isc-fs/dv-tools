@@ -43,7 +43,9 @@ pub fn spawn_subscribers(client: &dyn RosClient, snap: &Snapshot) -> Vec<&'stati
                 let snap = Arc::clone(snap);
                 std::thread::spawn(move || {
                     while let Some(s) = stream.next_sample() {
-                        let mut g = snap.lock().unwrap();
+                        // Recover a poisoned lock instead of cascading the panic
+                        // into every future dashboard poll (which would crash the app).
+                        let mut g = snap.lock().unwrap_or_else(|p| p.into_inner());
                         let e = g.entry(topic).or_insert(SignalEntry {
                             summary: String::new(),
                             last: Instant::now(),
@@ -84,7 +86,7 @@ pub struct TopicSnapshot {
 
 /// Build the current dashboard snapshot (one row per priority topic).
 pub fn snapshot(snap: &Snapshot, unavailable: &[&'static str]) -> Vec<TopicSnapshot> {
-    let g = snap.lock().unwrap();
+    let g = snap.lock().unwrap_or_else(|p| p.into_inner());
     let stale = Duration::from_secs_f64(dv_contract::STALENESS_WATCHDOG_S);
     STATE_TOPICS
         .iter()

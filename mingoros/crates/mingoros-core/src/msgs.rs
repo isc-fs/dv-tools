@@ -136,3 +136,21 @@ pub struct ControlCommand {
     pub steering: f64,
     pub brake: f64,
 }
+
+// --- service (std_srvs/SetBool) request/response, for the uDV actuation
+// services (`/force_ebs`, `/activate_steering`). Field order matches the .srv
+// so RustDDS's CDR reads them off the wire correctly. The `ros2_client::Message`
+// impls live in `ros/ros2.rs` (that trait only exists under the `ros2` feature).
+
+/// `std_srvs/srv/SetBool` **request** — `bool data`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SetBoolRequest {
+    pub data: bool,
+}
+
+/// `std_srvs/srv/SetBool` **response** — `bool success`, `string message`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SetBoolResponse {
+    pub success: bool,
+    pub message: String,
+}

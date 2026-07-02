@@ -7,7 +7,7 @@
 //! for (drives the visualizer with no car). Deterministic: values vary by
 //! sequence number only (no RNG), so output is reproducible.
 
-use super::{RosClient, RosError, Sample, SampleStream, TopicInfo};
+use super::{RosClient, RosError, Sample, SampleStream, SetBoolOutcome, TopicInfo};
 use crate::dv_contract::{self, AsState, DvStatus};
 use std::time::{Duration, Instant};
 
@@ -54,6 +54,23 @@ impl RosClient for FakeRos {
         }
         tracing::info!(topic, value, "fake publish");
         Ok(())
+    }
+
+    fn call_set_bool(&self, service: &str, data: bool) -> Result<SetBoolOutcome, RosError> {
+        tracing::info!(service, data, "fake SetBool service call");
+        let message = if service == dv_contract::SERVICE_FORCE_EBS {
+            if data {
+                "EBS forced open (simulated — fake backend)".to_string()
+            } else {
+                "EBS returned to normal (simulated — fake backend)".to_string()
+            }
+        } else {
+            format!("{service} data={data} accepted (simulated — fake backend)")
+        };
+        Ok(SetBoolOutcome {
+            success: true,
+            message,
+        })
     }
 }
 

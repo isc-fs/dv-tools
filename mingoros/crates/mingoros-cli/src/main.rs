@@ -430,8 +430,8 @@ fn render_state(backend: &str, snap: &Snapshot, unavailable: &[&'static str], js
     let _ = std::io::stdout().flush();
 }
 
-/// The embedded dashboard page (no external assets — works offline).
-const DASHBOARD_HTML: &str = include_str!("dashboard.html");
+/// The embedded dashboard page (shared with the Tauri app; no external assets).
+const DASHBOARD_HTML: &str = include_str!("../../../apps/mingoros-studio/ui/index.html");
 
 /// Build the JSON the web dashboard polls: one row per priority topic with
 /// value, age, freshness and danger flags.

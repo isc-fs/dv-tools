@@ -39,7 +39,7 @@ toolchain.
 
 ## Connection note
 
-The desktop app does DDS **over the network** to the car — fine on wired,
-same-subnet Ethernet. Over WiFi, prefer running `mingoros serve` on the car PC
-and opening the dashboard in a browser (DDS-over-WiFi is unreliable). Same
-frontend either way.
+The desktop app does DDS **over the network** to the car — designed for wired,
+same-subnet **Ethernet**, where RustDDS multicast discovery works. DDS over
+WiFi is unreliable (multicast discovery + lossy reliable traffic), so keep the
+link wired for the app.

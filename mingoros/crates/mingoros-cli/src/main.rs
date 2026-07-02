@@ -88,14 +88,6 @@ enum Cmd {
         duration: Option<u64>,
     },
 
-    /// Serve the safety/state dashboard as a web page (open in a browser).
-    /// The same `state` view, in a window you can leave up on the bench.
-    Serve {
-        /// TCP port to listen on.
-        #[arg(long, default_value_t = 8088)]
-        port: u16,
-    },
-
     /// Detect the uDV on the system's USB/serial ports (ranked candidates).
     Udv,
 
@@ -154,7 +146,6 @@ fn main() -> Result<()> {
             force,
         } => cmd_publish(cli.backend, &topic, &value, force),
         Cmd::State { duration } => cmd_state(cli.backend, cli.json, duration),
-        Cmd::Serve { port } => cmd_serve(cli.backend, port),
         Cmd::Udv => cmd_udv(cli.json),
         Cmd::Agent { dev, baud } => cmd_agent(dev, baud),
         Cmd::Bag { action } => cmd_bag(action),
@@ -374,50 +365,6 @@ fn render_state(
     out.push('\n');
     print!("{out}");
     let _ = std::io::stdout().flush();
-}
-
-/// The embedded dashboard page (shared with the Tauri app; no external assets).
-const DASHBOARD_HTML: &str = include_str!("../../../apps/mingoros-studio/ui/index.html");
-
-fn cmd_serve(backend: Backend, port: u16) -> Result<()> {
-    let client = make_client(backend)?;
-    let backend_name = client.backend_name().to_string();
-    let snap: dashboard::Snapshot = Arc::new(Mutex::new(HashMap::new()));
-    let unavailable = dashboard::spawn_subscribers(client.as_ref(), &snap);
-
-    let server = tiny_http::Server::http(("0.0.0.0", port))
-        .map_err(|e| anyhow::anyhow!("cannot bind port {port}: {e}"))?;
-    eprintln!(
-        "MingoROS dashboard → http://localhost:{port}   (backend: {backend_name}, Ctrl-C to stop)"
-    );
-
-    for req in server.incoming_requests() {
-        let path = req.url().split('?').next().unwrap_or("/");
-        let (body, ctype) = match path {
-            "/" => (DASHBOARD_HTML.to_string(), "text/html; charset=utf-8"),
-            "/api/state" => (
-                serde_json::json!({ "topics": dashboard::snapshot(&snap, &unavailable) })
-                    .to_string(),
-                "application/json",
-            ),
-            "/api/meta" => (
-                serde_json::json!({
-                    "backend": backend_name,
-                    "watchdog_s": dv_contract::STALENESS_WATCHDOG_S,
-                })
-                .to_string(),
-                "application/json",
-            ),
-            _ => {
-                let _ = req.respond(tiny_http::Response::empty(404));
-                continue;
-            }
-        };
-        let header = tiny_http::Header::from_bytes(&b"Content-Type"[..], ctype.as_bytes()).unwrap();
-        let _ = req.respond(tiny_http::Response::from_string(body).with_header(header));
-    }
-    drop(client);
-    Ok(())
 }
 
 fn cmd_udv(json: bool) -> Result<()> {

@@ -32,16 +32,12 @@ cargo run -- echo /dv/status --count 5   # decode the pipeline lifecycle bytes
 cargo run -- echo /ami/mission --count 5 # watch the AMI→mission_id mapping live
 cargo run -- hz /assi/state --samples 20 # measure rate + jitter
 cargo run -- state                       # ★ live safety dashboard (terminal)
-cargo run -- serve                       # ★ same dashboard as a web page (:8088)
 cargo run -- pub /force_ebs true         # refused: actuation topic needs --force
 ```
 
-`serve` starts a tiny HTTP server (default `:8088`) hosting the dashboard as a
-web page — the terminal `state` view, in a browser window you can leave up on
-the bench. A big banner reads **NOMINAL / stale / FAULT** at a glance, cards
-show each signal with a freshness dot, and EMERGENCY / ESTOP / EBS go red. The
-page polls a JSON snapshot (`/api/state`) every 250 ms; no external assets, so
-it works offline in the container.
+The **graphical UI is a native desktop app** — [`mingoros-studio`](apps/mingoros-studio/)
+(Tauri 2), a double-click executable like MingoCAN's `can-studio`. The CLI is
+the scriptable/headless companion; `state` is its terminal dashboard.
 
 `state` is the commissioning view — one panel over the priority safety topics
 (AS state, DV status, RES, mission, and the uDV `/debug` dashboard), each with a

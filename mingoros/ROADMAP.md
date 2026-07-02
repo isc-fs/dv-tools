@@ -74,18 +74,19 @@ debugging only**; raw CAN stays MingoCAN's job.
 - [ ] *(optional)* Services/actions: `ActivateMode` (mode bring-up),
       `StartBag`/`StopBag` — only if MingoROS should *drive* the pipeline.
 
-### Phase 5 — GUI + release
-- [x] **Shared dashboard frontend** (`apps/mingoros-studio/ui`) — a polished
-      bench HUD (NOMINAL/stale/FAULT hero, safety tiles, `/debug` signal chips,
-      topics table). Dual transport: Tauri `invoke` or browser `fetch`.
-- [x] **Web dashboard (`mingoros serve`)** — hosts that frontend as a browser
-      page over HTTP; robust remote view (run on the car, browse from anywhere).
-- [x] **Native desktop app (`mingoros-studio`, Tauri 2)** — the same frontend +
-      `mingoros-core` in a window; joins the car's DDS graph over Ethernet
-      (`ros2` backend), auto-connects domain 0, connection bar to change it.
-      Compiles clean; run with `cargo tauri dev`. Workspace member but excluded
-      from default build/CI so core+CLI stay Tauri-free.
-- [ ] *(optional)* signed bundles / auto-update; XRCE-session parse; publish.
+### Phase 5 — Native desktop app
+> The graphical UI is a **native executable** (like MingoCAN's can-studio) — no
+> web server. The web `serve` path was removed at Raul's request (feat/11).
+
+- [x] **Dashboard frontend** (`apps/mingoros-studio/ui`) — a polished bench HUD
+      (NOMINAL/stale/FAULT hero, safety tiles, `/debug` signal chips, topics
+      table). Rendered in the Tauri webview; verified live.
+- [x] **`mingoros-studio` (Tauri 2)** — `mingoros-core` in a native window;
+      joins the car's DDS graph over Ethernet (`ros2` backend), auto-connects
+      domain 0, connection bar to change it. Compiles clean; run with
+      `cargo tauri dev` / bundle with `cargo tauri build`. Workspace member but
+      excluded from default build/CI so core+CLI stay Tauri-free.
+- [ ] *(optional)* signed bundle / auto-update; XRCE-session parse.
 - [ ] Signed cross-platform bundles (with the Linux-only feature matrix made
       explicit: the micro-ROS agent / rclrs are Linux+Pi only).
 

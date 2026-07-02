@@ -13,7 +13,7 @@ monorepo: each tool is a self-contained subdirectory with its own build.
 | Tool | Language | Purpose |
 |---|---|---|
 | [`hesai-pcap2mcap`](hesai-pcap2mcap/) | Python + Docker | Replay a Hesai LiDAR `.pcap` capture through the Hesai driver and record it into an MCAP bag that opens directly in Lichtblick / Foxglove. |
-| [`mingoros`](mingoros/) *(WIP)* | Rust | ROS2-topic debugger/inspector for the DV stack — `list` / `echo` / `hz` / `pub` / `bag`, plus a live cone-map & mission-state dashboard. MingoCAN, but for ROS topics. |
+| [`mingoros`](mingoros/) | Rust | ROS2-topic debugger for the DV stack — `topics` / `echo` / `hz` / `pub`, a live safety/state **dashboard** (`state`) for stopped-car commissioning, and uDV bring-up (`udv` detect + `agent` bridge). MingoCAN, but for ROS topics. |
 
 ## Repository layout
 

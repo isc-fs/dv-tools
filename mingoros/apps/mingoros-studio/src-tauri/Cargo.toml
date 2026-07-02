@@ -1,0 +1,38 @@
+[package]
+name = "mingoros-studio"
+version = "0.1.0"
+description = "MingoROS Studio — native desktop dashboard for the DV state machine + safety systems."
+edition = "2021"
+rust-version = "1.95"
+license = "MIT"
+repository = "https://github.com/isc-fs/dv-tools"
+publish = false
+
+# We're a binary (Tauri's runtime is the entry point), but the app body lives
+# in `lib.rs` so `main.rs` stays a thin bootstrap — mirrors MingoCAN's
+# can-studio. `tauri-build` wires the bundler's resources at compile time.
+[[bin]]
+name = "mingoros-studio"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# Tauri 2 — the desktop application framework.
+tauri = { version = "2", features = [] }
+
+# The ros2 / RustDDS transport — the app joins the car's DDS graph directly
+# over wired Ethernet. `MINGOROS_FAKE=1` swaps in the in-process fake backend
+# so the window renders demo data with no ROS graph.
+mingoros-core = { workspace = true, features = ["ros2"] }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# NOTE: the release profile (thin/full LTO, strip, single codegen unit) is set
+# once at the workspace root (mingoros/Cargo.toml) and applies to this crate;
+# a `[profile.*]` here would be ignored by Cargo (only the root manifest's
+# profiles are honoured in a workspace).

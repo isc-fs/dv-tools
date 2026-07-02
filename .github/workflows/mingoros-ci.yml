@@ -1,0 +1,48 @@
+name: mingoros CI
+
+# Build, lint, and test the MingoROS Rust workspace on every change to it.
+on:
+  push:
+    paths:
+      - 'mingoros/**'
+      - '.github/workflows/mingoros-ci.yml'
+  pull_request:
+    paths:
+      - 'mingoros/**'
+      - '.github/workflows/mingoros-ci.yml'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mingoros
+    steps:
+      - uses: actions/checkout@v4
+
+      # serialport → libudev; RustDDS/pnet → libpcap.
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libudev-dev libpcap-dev pkg-config
+
+      # rust-toolchain.toml pins 1.95.0 + rustfmt/clippy; rustup honours it.
+      - name: Show toolchain
+        run: rustup show
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: mingoros
+
+      - name: Format
+        run: cargo fmt --check
+
+      - name: Clippy (default)
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Clippy (ros2)
+        run: cargo clippy --features ros2 --all-targets -- -D warnings
+
+      - name: Test (default)
+        run: cargo test
+
+      - name: Test (ros2)
+        run: cargo test --features ros2

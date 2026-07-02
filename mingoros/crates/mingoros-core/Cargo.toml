@@ -1,0 +1,25 @@
+[package]
+name         = "mingoros-core"
+version      = "0.1.0"
+description  = "Core library for MingoROS — the DV-stack ROS2 topic debugger"
+edition      .workspace = true
+rust-version .workspace = true
+license      .workspace = true
+repository   .workspace = true
+authors      .workspace = true
+
+[dependencies]
+anyhow    .workspace = true
+thiserror .workspace = true
+serde     .workspace = true
+tracing   .workspace = true
+ros2-client = { version = "0.9", optional = true }
+futures = { version = "0.3", optional = true }
+serialport = "4.7"
+
+[features]
+default = []
+# Real ROS2 transport: the pure-Rust ros2-client / RustDDS DDS stack. Talks
+# RTPS/DDS over UDP and interoperates with the pipeline's rmw_fastrtps. Gated
+# so the default build (CLI + fake backend) stays dependency-light.
+ros2 = ["dep:ros2-client", "dep:futures"]

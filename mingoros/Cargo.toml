@@ -1,0 +1,41 @@
+# MingoROS — Cargo workspace.
+#
+# Layout mirrors isc-fs/can-flasher (MingoCAN): a shared core library, a CLI,
+# and a Tauri desktop app (mingoros-studio) that all link `mingoros-core`.
+#
+# The Tauri app is a workspace member but NOT a default member — plain
+# `cargo build` / CI stay on core+cli (fast, no Tauri/webkit toolchain). Build
+# the app explicitly with `cargo build -p mingoros-studio` or `cargo tauri`.
+[workspace]
+resolver = "2"
+members = [
+    "crates/mingoros-core",
+    "crates/mingoros-cli",
+    "apps/mingoros-studio/src-tauri",
+]
+default-members = [
+    "crates/mingoros-core",
+    "crates/mingoros-cli",
+]
+
+[workspace.package]
+edition      = "2021"
+rust-version = "1.95"
+license      = "MIT"
+repository   = "https://github.com/isc-fs/dv-tools"
+authors      = ["ISC Racing Team — IFS08 Driverless"]
+
+[workspace.dependencies]
+anyhow             = "1.0"
+thiserror          = "2.0"
+serde              = { version = "1.0", features = ["derive"] }
+serde_json         = "1.0"
+clap               = { version = "4.5", features = ["derive", "wrap_help"] }
+tracing            = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+mingoros-core      = { path = "crates/mingoros-core" }
+
+[profile.release]
+lto       = true
+strip     = true
+codegen-units = 1

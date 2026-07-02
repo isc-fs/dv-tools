@@ -87,6 +87,14 @@ enum Cmd {
         duration: Option<u64>,
     },
 
+    /// Serve the safety/state dashboard as a web page (open in a browser).
+    /// The same `state` view, in a window you can leave up on the bench.
+    Serve {
+        /// TCP port to listen on.
+        #[arg(long, default_value_t = 8088)]
+        port: u16,
+    },
+
     /// Detect the uDV on the system's USB/serial ports (ranked candidates).
     Udv,
 
@@ -124,6 +132,7 @@ fn main() -> Result<()> {
             force,
         } => cmd_publish(cli.backend, &topic, &value, force),
         Cmd::State { duration } => cmd_state(cli.backend, cli.json, duration),
+        Cmd::Serve { port } => cmd_serve(cli.backend, port),
         Cmd::Udv => cmd_udv(cli.json),
         Cmd::Agent { dev, baud } => cmd_agent(dev, baud),
         Cmd::Bag => cmd_planned("bag", "rosbag record/replay via dv_msgs StartBag/StopBag"),
@@ -262,18 +271,15 @@ struct Entry {
 
 type Snapshot = Arc<Mutex<HashMap<&'static str, Entry>>>;
 
-fn cmd_state(backend: Backend, json: bool, duration: Option<u64>) -> Result<()> {
-    let client = make_client(backend)?;
-    let backend_name = client.backend_name();
-
-    // One RX thread per topic, all updating a shared snapshot (the
-    // WarioCharger dashboard model: RX threads + Arc<Mutex<state>> + render).
-    let snap: Snapshot = Arc::new(Mutex::new(HashMap::new()));
-    let mut unavailable: Vec<&'static str> = Vec::new();
+/// Spawn one RX thread per priority topic, each updating the shared snapshot
+/// (the WarioCharger dashboard model). Returns the topics the backend couldn't
+/// subscribe. Shared by the terminal (`state`) and web (`serve`) dashboards.
+fn spawn_subscribers(client: &dyn RosClient, snap: &Snapshot) -> Vec<&'static str> {
+    let mut unavailable = Vec::new();
     for &(_, topic) in STATE_TOPICS {
         match client.subscribe(topic) {
             Ok(mut stream) => {
-                let snap = Arc::clone(&snap);
+                let snap = Arc::clone(snap);
                 std::thread::spawn(move || {
                     while let Some(s) = stream.next_sample() {
                         let mut g = snap.lock().unwrap();
@@ -291,6 +297,14 @@ fn cmd_state(backend: Backend, json: bool, duration: Option<u64>) -> Result<()> 
             Err(_) => unavailable.push(topic),
         }
     }
+    unavailable
+}
+
+fn cmd_state(backend: Backend, json: bool, duration: Option<u64>) -> Result<()> {
+    let client = make_client(backend)?;
+    let backend_name = client.backend_name();
+    let snap: Snapshot = Arc::new(Mutex::new(HashMap::new()));
+    let unavailable = spawn_subscribers(client.as_ref(), &snap);
 
     let start = Instant::now();
     loop {
@@ -393,6 +407,74 @@ fn render_state(backend: &str, snap: &Snapshot, unavailable: &[&'static str], js
     out.push('\n');
     print!("{out}");
     let _ = std::io::stdout().flush();
+}
+
+/// The embedded dashboard page (no external assets — works offline).
+const DASHBOARD_HTML: &str = include_str!("dashboard.html");
+
+/// Build the JSON the web dashboard polls: one row per priority topic with
+/// value, age, freshness and danger flags.
+fn snapshot_json(snap: &Snapshot, unavailable: &[&'static str]) -> serde_json::Value {
+    let g = snap.lock().unwrap();
+    let stale = Duration::from_secs_f64(dv_contract::STALENESS_WATCHDOG_S);
+    let rows: Vec<serde_json::Value> = STATE_TOPICS
+        .iter()
+        .map(|&(label, topic)| match g.get(topic) {
+            Some(e) => {
+                let age = e.last.elapsed();
+                serde_json::json!({
+                    "label": label, "topic": topic, "value": e.summary,
+                    "age_ms": age.as_millis() as u64, "fresh": age <= stale,
+                    "danger": is_danger(&e.summary), "state": "ok",
+                })
+            }
+            None => serde_json::json!({
+                "label": label, "topic": topic, "value": "",
+                "state": if unavailable.contains(&topic) { "unavailable" } else { "waiting" },
+            }),
+        })
+        .collect();
+    serde_json::json!({ "topics": rows })
+}
+
+fn cmd_serve(backend: Backend, port: u16) -> Result<()> {
+    let client = make_client(backend)?;
+    let backend_name = client.backend_name().to_string();
+    let snap: Snapshot = Arc::new(Mutex::new(HashMap::new()));
+    let unavailable = spawn_subscribers(client.as_ref(), &snap);
+
+    let server = tiny_http::Server::http(("0.0.0.0", port))
+        .map_err(|e| anyhow::anyhow!("cannot bind port {port}: {e}"))?;
+    eprintln!(
+        "MingoROS dashboard → http://localhost:{port}   (backend: {backend_name}, Ctrl-C to stop)"
+    );
+
+    for req in server.incoming_requests() {
+        let path = req.url().split('?').next().unwrap_or("/");
+        let (body, ctype) = match path {
+            "/" => (DASHBOARD_HTML.to_string(), "text/html; charset=utf-8"),
+            "/api/state" => (
+                serde_json::to_string(&snapshot_json(&snap, &unavailable)).unwrap_or_default(),
+                "application/json",
+            ),
+            "/api/meta" => (
+                serde_json::json!({
+                    "backend": backend_name,
+                    "watchdog_s": dv_contract::STALENESS_WATCHDOG_S,
+                })
+                .to_string(),
+                "application/json",
+            ),
+            _ => {
+                let _ = req.respond(tiny_http::Response::empty(404));
+                continue;
+            }
+        };
+        let header = tiny_http::Header::from_bytes(&b"Content-Type"[..], ctype.as_bytes()).unwrap();
+        let _ = req.respond(tiny_http::Response::from_string(body).with_header(header));
+    }
+    drop(client);
+    Ok(())
 }
 
 /// A decoded value that signals a danger/fault state on the DV car.

@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MingoROS · DV state</title>
+<style>
+  :root {
+    --bg:#0f1216; --panel:#171b21; --border:#262c35; --text:#d6dae1;
+    --muted:#8b929c; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --green:#3fb950; --red:#f85149; --amber:#d29922; --gray:#6e7681;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+  header { display:flex; align-items:center; gap:12px; padding:14px 20px;
+    border-bottom:1px solid var(--border); }
+  header h1 { font-size:16px; font-weight:600; margin:0; letter-spacing:.2px; }
+  header .meta { margin-left:auto; color:var(--muted); font-size:13px; display:flex; align-items:center; gap:14px; }
+  .conn { display:inline-flex; align-items:center; gap:6px; }
+  .conn .dot { width:8px; height:8px; border-radius:50%; background:var(--gray); }
+  main { padding:16px 20px 28px; max-width:1000px; margin:0 auto; }
+  .banner { border-radius:10px; padding:14px 18px; margin:4px 0 18px; font-weight:600;
+    font-size:18px; letter-spacing:.4px; display:flex; align-items:center; gap:12px;
+    border:1px solid var(--border); background:var(--panel); }
+  .banner .pulse { width:12px; height:12px; border-radius:50%; background:var(--gray); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:10px;
+    padding:12px 14px; display:flex; flex-direction:column; gap:6px; min-height:78px; }
+  .card.wide { grid-column:1/-1; }
+  .card .top { display:flex; align-items:center; gap:8px; }
+  .card .dot { width:10px; height:10px; border-radius:50%; background:var(--gray); flex:none; }
+  .card .label { font-size:13px; color:var(--muted); }
+  .card .topic { font-size:12px; color:var(--gray); font-family:var(--mono); margin-left:auto; }
+  .card .value { font-family:var(--mono); font-size:17px; line-height:1.35; word-break:break-word; }
+  .card .age { font-size:12px; color:var(--gray); font-family:var(--mono); }
+  .fresh .dot { background:var(--green); }
+  .stale .dot { background:var(--amber); }
+  .stale .age { color:var(--amber); }
+  .waiting .dot, .unavailable .dot { background:var(--gray); }
+  .waiting .value, .unavailable .value { color:var(--gray); font-style:italic; font-size:14px; }
+  .danger { border-color:#82232a; background:#22181a; }
+  .danger .value { color:var(--red); font-weight:600; }
+  .ok-banner { border-color:#1c5a2a; background:#12261a; }
+  .ok-banner .pulse { background:var(--green); }
+  .fault-banner { border-color:#82232a; background:#22181a; color:#ffb4ae; }
+  .fault-banner .pulse { background:var(--red); }
+  .warn-banner .pulse { background:var(--amber); }
+</style>
+</head>
+<body>
+<header>
+  <h1>MingoROS · DV state</h1>
+  <div class="meta">
+    <span id="backend">backend: —</span>
+    <span class="conn"><span class="dot" id="conn-dot"></span><span id="conn">connecting…</span></span>
+  </div>
+</header>
+<main>
+  <div class="banner" id="banner"><span class="pulse"></span><span id="banner-text">waiting for data…</span></div>
+  <div class="grid" id="grid"></div>
+</main>
+<script>
+  const grid = document.getElementById('grid');
+  const banner = document.getElementById('banner');
+  const bannerText = document.getElementById('banner-text');
+  const connDot = document.getElementById('conn-dot');
+  const connText = document.getElementById('conn');
+
+  fetch('/api/meta').then(r => r.json()).then(m => {
+    document.getElementById('backend').textContent = 'backend: ' + m.backend;
+  }).catch(() => {});
+
+  function cls(row) {
+    if (row.state === 'unavailable') return 'unavailable';
+    if (row.state === 'waiting') return 'waiting';
+    if (row.danger) return 'danger fresh';
+    return row.fresh ? 'fresh' : 'stale';
+  }
+
+  function render(data) {
+    const rows = data.topics || [];
+    let danger = false, anyStale = false, anyData = false;
+    grid.innerHTML = '';
+    for (const row of rows) {
+      if (row.state === 'ok') { anyData = true; if (row.danger) danger = true; if (!row.fresh) anyStale = true; }
+      const c = document.createElement('div');
+      c.className = 'card ' + cls(row) + (row.label === 'Safety' ? ' wide' : '');
+      const age = row.state === 'ok' ? (row.age_ms/1000).toFixed(1) + 's' : '';
+      const val = row.state === 'ok' ? row.value
+        : (row.state === 'unavailable' ? 'unavailable on this backend' : 'waiting…');
+      c.innerHTML =
+        '<div class="top"><span class="dot"></span><span class="label"></span><span class="topic"></span></div>'
+        + '<div class="value"></div><div class="age"></div>';
+      c.querySelector('.label').textContent = row.label;
+      c.querySelector('.topic').textContent = row.topic;
+      c.querySelector('.value').textContent = val;
+      c.querySelector('.age').textContent = age;
+      grid.appendChild(c);
+    }
+    banner.className = 'banner ' + (danger ? 'fault-banner' : anyStale ? 'warn-banner' : anyData ? 'ok-banner' : '');
+    bannerText.textContent = danger ? 'FAULT — check the red signals'
+      : !anyData ? 'waiting for data…'
+      : anyStale ? 'stale — a heartbeat dropped' : 'NOMINAL — all signals fresh';
+  }
+
+  async function poll() {
+    try {
+      const r = await fetch('/api/state', { cache:'no-store' });
+      render(await r.json());
+      connDot.style.background = 'var(--green)'; connText.textContent = 'live';
+    } catch (e) {
+      connDot.style.background = 'var(--red)'; connText.textContent = 'disconnected';
+    }
+  }
+  poll();
+  setInterval(poll, 250);
+</script>
+</body>
+</html>

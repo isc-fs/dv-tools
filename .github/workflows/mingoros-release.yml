@@ -1,0 +1,197 @@
+name: MingoROS Release
+
+# Release pipeline for the MingoROS surfaces:
+#   - `mingoros` CLI (Rust binaries — Linux / macOS)
+#   - MingoROS Studio (Tauri desktop bundles — .dmg / .deb / .AppImage / .rpm)
+#
+# A `mingoros-v*` tag (e.g. `mingoros-v0.2.0`) builds both surfaces in parallel
+# and attaches their artefacts to one GitHub Release. `workflow_dispatch` is a
+# manual dry-run (artefacts only, no Release).
+#
+# Windows is deferred: the ros2/RustDDS transport pulls `pnet`, which needs the
+# Npcap SDK to link on Windows. The DV stack runs on Linux (car PC) + macOS
+# (dev laptops), so those are the shipped targets.
+
+on:
+  push:
+    tags:
+      - 'mingoros-v*'
+  workflow_dispatch:
+
+concurrency:
+  group: mingoros-release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  # ---- Release page (created once, before builds attach) ------
+  create-release:
+    name: create GitHub Release
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          body: |
+            **MingoROS** — the DV-stack ROS 2 topic debugger: `mingoros` CLI + MingoROS Studio (desktop app).
+
+            ### Install per surface
+
+            **CLI (`mingoros`)** — pre-built binaries below (Linux x86_64 / aarch64, macOS aarch64), or:
+            ```bash
+            cargo install --git https://github.com/isc-fs/dv-tools.git --tag ${{ github.ref_name }} mingoros-cli
+            ```
+
+            **MingoROS Studio** — pick the bundle for your OS:
+            - macOS: `.dmg` (ad-hoc signed; first launch needs **right-click → Open → confirm**)
+            - Linux: `.deb`, `.AppImage`, or `.rpm`
+
+            Connect the laptop to the car PC over wired Ethernet (same subnet); the app auto-joins ROS domain 0.
+
+            ---
+            **Full commit log**: https://github.com/isc-fs/dv-tools/commits/${{ github.ref_name }}
+
+  # ---- CLI binaries -------------------------------------------
+  cli-build:
+    name: cli (${{ matrix.target }})
+    needs: [create-release]
+    if: always() && (needs.create-release.result == 'success' || needs.create-release.result == 'skipped')
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            apt_deps: libudev-dev libpcap-dev pkg-config
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04-arm
+            apt_deps: libudev-dev libpcap-dev pkg-config
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            apt_deps: ''
+    defaults:
+      run:
+        working-directory: mingoros
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux build deps
+        if: matrix.apt_deps != ''
+        run: sudo apt-get update && sudo apt-get install -y ${{ matrix.apt_deps }}
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: '1.95.0'
+          target: ${{ matrix.target }}
+          cache: false
+          rustflags: ''
+
+      - name: Build release binary (with the ros2 transport)
+        run: cargo build --release --bin mingoros --features ros2 --target ${{ matrix.target }}
+
+      - name: Compute version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            echo "version=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=dev-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Package
+        shell: bash
+        run: |
+          STAGE="mingoros-${{ steps.version.outputs.version }}-${{ matrix.target }}"
+          mkdir "$STAGE"
+          cp "target/${{ matrix.target }}/release/mingoros" "$STAGE/"
+          cp README.md "$STAGE/" 2>/dev/null || true
+          tar -czf "$STAGE.tar.gz" "$STAGE"
+          echo "archive=mingoros/$STAGE.tar.gz" >> "$GITHUB_ENV"
+
+      - name: Upload as workflow artifact (always)
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-${{ matrix.target }}
+          path: ${{ env.archive }}
+          retention-days: 7
+
+      - name: Attach to GitHub Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.archive }}
+          fail_on_unmatched_files: true
+
+  # ---- MingoROS Studio bundles --------------------------------
+  studio-build:
+    name: studio (${{ matrix.os }})
+    needs: [create-release]
+    if: always() && (needs.create-release.result == 'success' || needs.create-release.result == 'skipped')
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            apt_deps: >-
+              libwebkit2gtk-4.1-dev
+              libgtk-3-dev
+              libayatana-appindicator3-dev
+              librsvg2-dev
+              libudev-dev
+              libpcap-dev
+              pkg-config
+          - os: macos-latest
+            apt_deps: ''
+    defaults:
+      run:
+        working-directory: mingoros/apps/mingoros-studio
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux WebKit / GTK build deps
+        if: matrix.apt_deps != ''
+        run: sudo apt-get update && sudo apt-get install -y ${{ matrix.apt_deps }}
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: '1.95.0'
+          cache: false
+          rustflags: ''
+
+      - name: Cache cargo registry + target/
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: 'mingoros -> target'
+
+      - name: Install frontend dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Generate icons
+        run: npx --yes @tauri-apps/cli@^2 icon src-tauri/icons/icon.png
+
+      - name: Build + attach bundles to Release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: mingoros/apps/mingoros-studio
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+          releaseDraft: false
+          prerelease: false

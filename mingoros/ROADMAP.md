@@ -68,8 +68,11 @@ debugging only**; raw CAN stays MingoCAN's job.
       agent's output; confirm the exact uDV product/iSerial string (usbd_desc.c).
 
 ### Phase 4 — Control plane + bag
-- [ ] Services/actions: `ActivateMode` (mode bring-up), `StartBag`/`StopBag`.
-- [ ] `bag` record/replay of a bench session (rosbag2 / mcap).
+- [x] `bag record` / `bag play` — record a bench session to MCAP or replay one,
+      wrapping the `ros2 bag` CLI (records the priority safety topics by default,
+      `--all` for the whole graph). Same subprocess-manager pattern as `agent`.
+- [ ] *(optional)* Services/actions: `ActivateMode` (mode bring-up),
+      `StartBag`/`StopBag` — only if MingoROS should *drive* the pipeline.
 
 ### Phase 5 — GUI + release
 - [x] **Web dashboard (`mingoros serve`)** — the UI, delivered. A tiny embedded

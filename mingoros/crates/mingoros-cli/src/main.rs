@@ -109,8 +109,29 @@ enum Cmd {
         baud: u32,
     },
 
-    /// rosbag record/replay control — planned (dv_msgs StartBag/StopBag).
-    Bag,
+    /// Record or replay a bench session (wraps `ros2 bag`).
+    Bag {
+        #[command(subcommand)]
+        action: BagCmd,
+    },
+}
+
+#[derive(Subcommand)]
+enum BagCmd {
+    /// Record topics to an MCAP bag (wraps `ros2 bag record`).
+    Record {
+        /// Output directory for the bag.
+        #[arg(long, default_value = "mingoros_bag")]
+        output: String,
+        /// Record every topic (default: just the priority safety topics).
+        #[arg(long)]
+        all: bool,
+    },
+    /// Replay a recorded bag (wraps `ros2 bag play`).
+    Play {
+        /// Path to the bag directory.
+        path: String,
+    },
 }
 
 fn main() -> Result<()> {
@@ -135,7 +156,7 @@ fn main() -> Result<()> {
         Cmd::Serve { port } => cmd_serve(cli.backend, port),
         Cmd::Udv => cmd_udv(cli.json),
         Cmd::Agent { dev, baud } => cmd_agent(dev, baud),
-        Cmd::Bag => cmd_planned("bag", "rosbag record/replay via dv_msgs StartBag/StopBag"),
+        Cmd::Bag { action } => cmd_bag(action),
     }
 }
 
@@ -572,10 +593,49 @@ fn cmd_publish(backend: Backend, topic: &str, value: &str, force: bool) -> Resul
     Ok(())
 }
 
-fn cmd_planned(name: &str, what: &str) -> Result<()> {
-    println!("`{name}` is planned but not yet wired: {what}.");
-    println!("See mingoros/ROADMAP.md.");
-    Ok(())
+fn cmd_bag(action: BagCmd) -> Result<()> {
+    let (argv, note): (Vec<String>, String) = match action {
+        BagCmd::Record { output, all } => {
+            let mut a = vec![
+                "bag".into(),
+                "record".into(),
+                "-s".into(),
+                "mcap".into(),
+                "-o".into(),
+                output.clone(),
+            ];
+            if all {
+                a.push("-a".into());
+            } else {
+                // Default: just the priority safety/state topics.
+                for &(_, topic) in STATE_TOPICS {
+                    a.push(topic.to_string());
+                }
+            }
+            (
+                a,
+                format!("recording to {output}/ — Ctrl-C to stop + finalise"),
+            )
+        }
+        BagCmd::Play { path } => (
+            vec!["bag".into(), "play".into(), path.clone()],
+            format!("replaying {path}"),
+        ),
+    };
+
+    eprintln!("ros2 {}", argv.join(" "));
+    eprintln!("({note})\n");
+    match std::process::Command::new("ros2").args(&argv).status() {
+        Ok(s) => {
+            eprintln!("\nros2 bag exited ({s}).");
+            Ok(())
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => bail!(
+            "`ros2` not found on PATH. Bag record/replay wraps the ROS 2 CLI — run MingoROS \
+             where a sourced ROS 2 lives (e.g. the pipeline container)."
+        ),
+        Err(e) => bail!("failed to launch ros2 bag: {e}"),
+    }
 }
 
 /// Command/actuation topics that must be explicitly armed before publishing.

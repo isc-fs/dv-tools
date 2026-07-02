@@ -33,6 +33,10 @@ export interface StateResponse {
 export interface Meta {
     backend?: string;
     domain?: number;
+    /** Local interface DDS is bound to (direct-link Ethernet IP), or null. */
+    iface?: string | null;
+    /** Topics seen on the graph at connect — a "DV PC reachable" signal. */
+    discovered?: number;
     connected?: boolean;
     error?: string | null;
     watchdog_s?: number;

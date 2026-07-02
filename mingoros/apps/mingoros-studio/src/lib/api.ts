@@ -80,6 +80,8 @@ export function getMeta(): Promise<Meta> {
         return Promise.resolve({
             backend: 'fake (demo)',
             domain: 0,
+            iface: null,
+            discovered: 7,
             connected: true,
             error: null,
             watchdog_s: 1.5,
@@ -88,10 +90,14 @@ export function getMeta(): Promise<Meta> {
     return invoke<Meta>('get_meta');
 }
 
-/** Reconnect the ROS bridge on a new domain id. No-op in the demo. */
-export function connect(domain: number): Promise<void> {
+/**
+ * Reconnect the ROS bridge on a new domain id, optionally binding DDS to a
+ * local interface IP (the direct-link Ethernet, for a point-to-point DV PC
+ * link). Empty `iface` means "all interfaces". No-op in the demo.
+ */
+export function connect(domain: number, iface?: string): Promise<void> {
     if (IN_BROWSER) return Promise.resolve();
-    return invoke<void>('connect', { domain });
+    return invoke<void>('connect', { domain, iface: iface && iface.trim() ? iface.trim() : null });
 }
 
 /**

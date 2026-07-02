@@ -1131,6 +1131,32 @@ tr.stale .tag {
     }
 }
 
+/* ---- connection bar: domain / interface inputs + error chip ---- */
+.conn .dom-in {
+    width: 46px;
+    text-align: center;
+}
+.conn .iface-in {
+    width: 116px;
+    font-family: var(--mono);
+    font-size: 12px;
+}
+.conn-err {
+    display: inline-flex;
+    align-items: center;
+    max-width: 320px;
+    margin-right: 4px;
+    padding: 5px 10px;
+    border-radius: 6px;
+    background: var(--no-bg);
+    border: 1px solid var(--no-line);
+    color: var(--no-ink);
+    font-size: 11.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 /* ---- Force-EBS control (guarded actuation) ---- */
 .ebs-btn {
     display: inline-flex;

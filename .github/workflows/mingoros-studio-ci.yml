@@ -1,0 +1,98 @@
+name: mingoros-studio CI
+
+# Compile + frontend-build smoke check for the Tauri desktop app.
+# Runs only when the Studio's own files change, so a PR that doesn't touch
+# the app doesn't pay the cross-platform Tauri build tax.
+#
+# Matrix: ubuntu + macos. Windows is deferred: the ros2/RustDDS transport
+# pulls `pnet`, which needs the Npcap SDK (Packet.lib) to link on Windows —
+# out of scope while the DV stack is Linux (car PC) / macOS (dev laptops).
+
+on:
+  push:
+    branches: [dev, main]
+    paths:
+      - 'mingoros/apps/mingoros-studio/**'
+      - 'mingoros/Cargo.toml'
+      - 'mingoros/Cargo.lock'
+      - '.github/workflows/mingoros-studio-ci.yml'
+  pull_request:
+    branches: [dev, main]
+    paths:
+      - 'mingoros/apps/mingoros-studio/**'
+      - 'mingoros/Cargo.toml'
+      - 'mingoros/Cargo.lock'
+      - '.github/workflows/mingoros-studio-ci.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: mingoros-studio-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            apt_deps: >-
+              libwebkit2gtk-4.1-dev
+              libgtk-3-dev
+              libayatana-appindicator3-dev
+              librsvg2-dev
+              libudev-dev
+              libpcap-dev
+              pkg-config
+          - os: macos-latest
+            apt_deps: ''
+    defaults:
+      run:
+        working-directory: mingoros/apps/mingoros-studio
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux WebKit / GTK build deps
+        if: matrix.apt_deps != ''
+        run: sudo apt-get update && sudo apt-get install -y ${{ matrix.apt_deps }}
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: '1.95.0'
+          cache: false
+          rustflags: ''
+
+      - name: Cache cargo registry + target/
+        uses: Swatinem/rust-cache@v2
+        with:
+          # The Cargo workspace root lives at mingoros/; cache its target/.
+          workspaces: 'mingoros -> target'
+
+      - name: Install frontend dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Generate platform icon variants
+        # tauri-build needs icon.icns (macOS) / icon.ico (Windows) generated
+        # from the committed icon.png. Local devs run this once too.
+        run: npx --yes @tauri-apps/cli@^2 icon src-tauri/icons/icon.png
+
+      - name: Type-check Svelte sources
+        run: npm run check
+
+      - name: Build frontend (production)
+        run: npm run build
+
+      - name: Cargo check the Tauri crate
+        # Full `cargo build`/bundle is large + slow per-PR; the check verifies
+        # the crate compiles + links + the frontend builds. Bundling lands in
+        # the release workflow. Run from the workspace root (mingoros/).
+        run: cargo check -p mingoros-studio
+        working-directory: mingoros

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+        Hardened-runtime entitlements for the macOS bundle.
+
+        MingoROS Studio joins the car's ROS 2 DDS graph over the network
+        (RustDDS: UDP multicast discovery + unicast data). Unlike MingoCAN it
+        loads NO foreign-signed dylibs (the transport is pure Rust), so it needs
+        no `disable-library-validation` exception.
+
+        The network client/server keys document intent; they are only enforced
+        under the App Sandbox, which a Tauri desktop app does not use, but they
+        keep the bundle's declared capabilities honest for reviewers.
+    -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+    <key>com.apple.security.network.server</key>
+    <true/>
+</dict>
+</plist>

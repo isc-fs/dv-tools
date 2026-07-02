@@ -1,45 +1,73 @@
 # MingoROS Studio
 
 The native desktop dashboard — MingoCAN's `can-studio` parallel for ROS. A
-Tauri 2 app: the same `mingoros-core` engine as the CLI, in a window.
+**Tauri 2 + Svelte 5 + TypeScript** app: the same `mingoros-core` engine as the
+CLI, in a window.
 
 It runs on the **laptop** and joins the car PC's ROS 2 DDS graph directly over
-**Ethernet** (the `ros2` / RustDDS backend). The window renders the shared
-`ui/` frontend (a live safety/state dashboard); the frontend calls the Rust
-commands (`get_state`, `get_meta`, `connect`) over Tauri IPC.
+**Ethernet** (the `ros2` / RustDDS backend). The window renders a live
+**Go / No-Go board** — the autonomous state machine, the EBS / RES / ASMS safety
+interlocks, and mission state at a glance, for bench-commissioning a *stationary*
+car. The Svelte frontend calls the Rust commands (`get_state`, `get_meta`,
+`connect`) over Tauri IPC.
 
 ```
 apps/mingoros-studio/
-├── ui/                 # shared frontend (also served by `mingoros serve`)
-│   └── index.html
-└── src-tauri/          # the Tauri app (Rust)
-    ├── src/main.rs     #   AppState + commands; auto-connects domain 0 at launch
-    ├── tauri.conf.json #   window + withGlobalTauri (so the UI can invoke)
-    └── icons/
+├── index.html            # Vite entry
+├── package.json          # Svelte 5 + Vite + @tauri-apps/cli
+├── vite.config.ts · svelte.config.js · tsconfig.json
+├── public/icon.png
+├── src/                  # the frontend (Svelte 5, TypeScript)
+│   ├── main.ts           #   mounts App onto #app
+│   ├── app.css           #   global styles (the board's design system)
+│   ├── App.svelte        #   state + 250 ms poll loop + layout
+│   └── lib/
+│       ├── api.ts        #   typed invoke() wrappers (+ browser demo fallback)
+│       ├── types.ts · model.ts   # data contract + pure parse/classify logic
+│       └── components/   #   AppBar, StatusBanner, StateHero, FactCards,
+│                         #   ResBar, Checklist, RawTopics
+└── src-tauri/            # the Tauri app (Rust)
+    ├── src/main.rs       #   thin bootstrap → mingoros_studio::run()
+    ├── src/lib.rs        #   AppState + commands; auto-connects domain 0
+    ├── tauri.conf.json   #   window + bundle config
+    ├── entitlements.plist · capabilities/default.json
+    └── icons/icon.png    #   source icon (platform variants generated)
 ```
 
-## Run
+## Run / build
 
-Needs the Tauri CLI once:
+Needs Node 20 + the Rust toolchain. First time in this dir:
 
 ```bash
-cargo install tauri-cli --version '^2'      # or: npm i -g @tauri-apps/cli
-cd mingoros/apps/mingoros-studio/src-tauri
-cargo tauri dev                             # launches the window (debug)
-cargo tauri build                           # bundles a .app / installer
+npm install
+npx @tauri-apps/cli icon src-tauri/icons/icon.png   # generate .icns/.ico/png set
 ```
 
-Set the car's `ROS_DOMAIN_ID` in the connection bar (default 0). Wired
-same-subnet Ethernet lets RustDDS discover the graph via multicast.
+Then:
 
-`cargo build -p mingoros-studio` compiles the Rust without launching the
-window (what CI/quick checks use). The app is a workspace member but **not** a
-default member, so plain `cargo build` / the core+CLI CI don't pull the Tauri
-toolchain.
+```bash
+npm run tauri:dev      # launches the window (Vite dev server + Rust, hot reload)
+npm run tauri:build    # bundles a .app / .dmg / .deb / .AppImage
+```
+
+- `npm run dev` alone serves just the frontend at `http://localhost:5173`; with
+  no Tauri host it renders a **demo** that alternates a nominal and a fault
+  snapshot (handy for pure-UI work).
+- `MINGOROS_FAKE=1 npm run tauri:dev` runs the *app* against the in-process fake
+  backend — the real window, demo data, no ROS graph needed.
+- `npm run check` runs `svelte-check` (the CI gate).
+
+`cargo check -p mingoros-studio` (from `mingoros/`) compiles the Rust after
+`npm run build` has produced `dist/`. The app is a workspace member but **not** a
+default member, so plain `cargo build` / the core+CLI CI stay Tauri-free.
 
 ## Connection note
 
-The desktop app does DDS **over the network** to the car — designed for wired,
-same-subnet **Ethernet**, where RustDDS multicast discovery works. DDS over
-WiFi is unreliable (multicast discovery + lossy reliable traffic), so keep the
-link wired for the app.
+The app does DDS **over the network** to the car — designed for wired,
+same-subnet **Ethernet**, where RustDDS multicast discovery works. DDS over WiFi
+is unreliable (multicast discovery + lossy reliable traffic), so keep the link
+wired.
+
+Windows isn't a shipped target yet: the RustDDS stack pulls `pnet`, which needs
+the Npcap SDK to link on Windows. The DV stack runs on Linux (car PC) + macOS
+(dev laptops), which are the built targets.

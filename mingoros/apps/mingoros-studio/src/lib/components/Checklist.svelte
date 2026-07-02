@@ -10,6 +10,7 @@
         NICE,
         classifySignal,
         classToKind,
+        displayName,
         markerGlyph,
         statusWord,
     } from '../model';
@@ -43,7 +44,7 @@
                 : 'hold';
             return {
                 key: name,
-                name: s ? s.name : name,
+                name: displayName(s ? s.name : name),
                 nice: NICE[name],
                 val: s ? s.val : '—',
                 kind,

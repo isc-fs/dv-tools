@@ -72,7 +72,7 @@ export const NICE: Record<string, string> = {
     TS: 'Tractive system',
     SDC: 'Shutdown circuit',
     EBS: 'Emergency brake system',
-    ABS: 'Autonomous brake self-check',
+    ABS: 'Autonomous System Brake self-check',
     EBSinit: 'EBS init / self-test',
     brakes: 'Service-brake pressure',
     mission: 'Mission selected',
@@ -80,6 +80,21 @@ export const NICE: Record<string, string> = {
     motion: 'Vehicle motion',
     finished: 'Mission finished flag',
 };
+
+/**
+ * Wire token -> the label shown to a human. The uDV firmware prints the
+ * autonomous-system-brake check as `ABS:` on the wire, but the system is the
+ * **ASB** (Autonomous System Brake) — its firmware method is `ASBChecksOK()`,
+ * and it is NOT automotive anti-lock braking. We parse the wire token verbatim
+ * (so the raw /debug dump stays honest) and relabel it for display everywhere a
+ * signal name is surfaced to the operator.
+ */
+const DISPLAY: Record<string, string> = { ABS: 'ASB' };
+
+/** The operator-facing label for a wire signal name (identity if unmapped). */
+export function displayName(name: string): string {
+    return DISPLAY[name] ?? name;
+}
 
 /** Format a millisecond age as "N.Ns" (null -> "0.0s"). */
 export function fmtAge(ms: number | null | undefined): string {
@@ -210,7 +225,7 @@ export function deriveVerdict(
     if (anyDanger || badSignals.length > 0) {
         let reason: string;
         if (badSignals.length) {
-            const parts = badSignals.map((s) => s.name + ':' + s.val);
+            const parts = badSignals.map((s) => displayName(s.name) + ':' + s.val);
             reason =
                 'faults: ' +
                 parts.slice(0, 4).join(' · ') +
@@ -237,9 +252,9 @@ export function deriveVerdict(
         for (const nm of need) {
             const s = smap[nm.toLowerCase()];
             if (!s) {
-                pending.push(nm + ':?');
+                pending.push(displayName(nm) + ':?');
             } else if (classifySignal(s.name, s.val) !== 'good') {
-                pending.push(s.name + ':' + s.val);
+                pending.push(displayName(s.name) + ':' + s.val);
             }
         }
         // RES must read GO

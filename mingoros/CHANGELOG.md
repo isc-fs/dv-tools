@@ -6,6 +6,10 @@ The first release of **MingoROS** — the ROS 2 topic debugger for the IFS08
 Driverless stack (MingoCAN, but for ROS topics). No ROS install needed on the
 laptop (pure-Rust RustDDS).
 
+> ⚠️ **Safety:** MingoROS can command actuation (EBS, control/mission topics).
+> The car must be **on stands, wheels off the ground, at all times** while it is
+> in use — a persistent banner in the app and notices in the docs enforce this.
+
 ### Desktop app (Tauri 2 + Svelte 5)
 - **Go / No-Go safety board**: a dominant AS-state readout, a
   `READY TO DRIVE / NOT READY / FAULT` verdict that names the blocking

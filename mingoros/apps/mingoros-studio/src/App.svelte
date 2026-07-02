@@ -132,6 +132,15 @@
 
 <AppBar {meta} {live} {liveText} connect={reconnect} />
 
+<div class="safety-strip" role="alert">
+    <span class="warn-glyph" aria-hidden="true">▲</span>
+    <span
+        ><b>CAR ON STANDS · WHEELS OFF THE GROUND, ALWAYS.</b> MingoROS can command
+        actuation (EBS, control/mission topics) — a stray command can move the car.
+        Never use it with the wheels able to touch down.</span
+    >
+</div>
+
 <main>
     <StatusBanner state={overallState} tag={overallTag} />
 

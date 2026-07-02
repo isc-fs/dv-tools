@@ -105,12 +105,17 @@ mingoros/
 │       ├── dv_contract.rs         # SINGLE SOURCE OF TRUTH — AS/DV state bytes,
 │       │                          #   mission registry, AMI map, car + sim
 │       │                          #   topic + QoS catalogue. Parity-tested.
+│       ├── dashboard.rs           # shared safety-snapshot model (CLI + web + app)
+│       ├── agent.rs               # uDV detect + micro_ros_agent argv
 │       ├── msgs.rs                # (ros2) serde ROS2 msg types for CDR decode
 │       └── ros/                   # ROS transport abstraction
 │           ├── mod.rs             #   RosClient trait + TopicInfo/Sample
 │           ├── fake.rs            #   in-process synthetic graph
 │           └── ros2.rs            #   (ros2) ros2-client/RustDDS live backend
-└── crates/mingoros-cli/           # the `mingoros` binary (clap)
+├── crates/mingoros-cli/           # the `mingoros` binary (clap)
+└── apps/mingoros-studio/          # native desktop app (Tauri 2)
+    ├── ui/                        #   shared frontend (also served by `serve`)
+    └── src-tauri/                 #   Rust: mingoros-core in a window (see its README)
 ```
 
 - **`RosClient`** is the seam every backend implements — `fake` today, `ros2`

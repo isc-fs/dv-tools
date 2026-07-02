@@ -1,0 +1,23 @@
+[package]
+name = "mingoros-studio"
+version = "0.1.0"
+description = "MingoROS Studio — native desktop dashboard for the DV stack"
+edition = "2021"
+rust-version = "1.95"
+license = "MIT"
+publish = false
+
+[[bin]]
+name = "mingoros-studio"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+# The ros2/RustDDS transport — the desktop app joins the car's DDS graph
+# directly (over wired Ethernet).
+mingoros-core = { workspace = true, features = ["ros2"] }

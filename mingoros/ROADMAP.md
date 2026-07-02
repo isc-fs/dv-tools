@@ -15,17 +15,17 @@ debugging only**; raw CAN stays MingoCAN's job.
 - [x] Cargo workspace (`mingoros-core` + `mingoros-cli`), Rust 1.95, clean
       `clippy -D warnings` + `fmt`.
 - [x] `dv_contract`: faithful port of the pipeline's `interface_contract.py`
-      (AS/DV byte enums, mission registry, AMI→mission_id map), `fs_msgs/Cone`
-      colours, the topic + QoS catalogue — with parity tests pinning the bytes.
+      (AS/DV byte enums, mission registry, AMI→mission_id map), the topic + QoS
+      catalogue — with parity tests pinning the bytes.
 - [x] `RosClient` transport trait + in-process `fake` backend.
 - [x] CLI: `topics`, `echo`, `hz`, `pub` (with the actuation safety gate);
       `bag`/`adapters`/`monitor` stubbed with roadmap pointers.
 
 > **Scope reality (car STOPPED):** MingoROS is used to commission a *stationary*
 > car, so the priority surface is the **state machine + safety/mission signals**
-> (AS state, ASMS, TS, SDC/RES, EBS, R2D, mission, `/dv/status`), *not* the
-> motion/perception topics (pose, odom, cones, control). The latter are decoded
-> for completeness but are not the focus.
+> (AS state, ASMS, TS, SDC/RES, EBS, R2D, mission, `/dv/status`). Motion topics
+> (pose, odom) are decoded for completeness; **perception/cones and LiDAR are
+> out of scope entirely** (use rviz/Foxglove for those).
 
 ### Phase 2 — ROS transport via ros2-client/RustDDS  (`feat/2`) — the biggest bet
 - [x] **QoS-validation spike — PASS** (see [SPIKE.md](SPIKE.md)). Proven against
@@ -36,8 +36,8 @@ debugging only**; raw CAN stays MingoCAN's job.
 - [x] `ros2` backend implementing `RosClient` over ros2-client/RustDDS, behind
       the `ros2` feature; node spinner on a background thread.
 - [x] `dv_contract` extended with the IFSSIM/sim topic surface; `topics` /
-      `echo` / `hz` work against a live pipeline (Float32, fs_msgs/Track,
-      std_msgs/Bool decoded).
+      `echo` / `hz` work against a live pipeline (Float32 + std_msgs scalars
+      decoded).
 - [x] Dockerfile — runs MingoROS in the pipeline's DDS domain (Linux/container).
 - [x] Corrected `dv_contract` against uDV `feat/15` + pipeline `feat/7` (right
       names/QoS; flagged the `/assi/state`+`/ami/mission` best-effort-vs-latched
@@ -52,9 +52,6 @@ debugging only**; raw CAN stays MingoCAN's job.
       (OK/ESTOP/GO/TIMEOUT/NONE), `/res/go`. `dv_contract` now mirrors the
       firmware's `AS_SIG_*` signal word (`as_state.h`) + RES codes, with a
       `describe_state_signals()` renderer and parity tests.
-- [ ] *(deprioritized — perception, only relevant when moving)* Cone-map decode
-      of `visualization_msgs/MarkerArray` (`/Conos`). Not a QoS gap; a viz item.
-      LiDAR/PointCloud2 is out of scope entirely.
 
 ### Phase 3 — uDV link
 > Firmware flashing is **out of scope** — MingoROS is a debugger/bridge, not a
@@ -70,10 +67,9 @@ debugging only**; raw CAN stays MingoCAN's job.
 - [ ] *(needs hardware to verify live)* XRCE-session state parsing from the
       agent's output; confirm the exact uDV product/iSerial string (usbd_desc.c).
 
-### Phase 4 — Control plane + bag + dashboard
+### Phase 4 — Control plane + bag
 - [ ] Services/actions: `ActivateMode` (mode bring-up), `StartBag`/`StopBag`.
-- [ ] Mission/AS/DV-state dashboard with the 1.5 s staleness watchdog.
-- [ ] Cone-map + pose + path visualizer (colour-coded by `fs_msgs/Cone`).
+- [ ] `bag` record/replay of a bench session (rosbag2 / mcap).
 
 ### Phase 5 — GUI + release
 - [ ] Tauri 2 + Svelte 5 shell (`apps/mingoros-studio`), forked from can-studio;

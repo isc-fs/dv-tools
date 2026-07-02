@@ -8,7 +8,7 @@
 //! sequence number only (no RNG), so output is reproducible.
 
 use super::{RosClient, RosError, Sample, SampleStream, TopicInfo};
-use crate::dv_contract::{self, AsState, ConeColor, DvStatus};
+use crate::dv_contract::{self, AsState, DvStatus};
 use std::time::{Duration, Instant};
 
 /// A fake ROS client backed purely by [`dv_contract::KNOWN_TOPICS`].
@@ -64,8 +64,6 @@ fn cadence_for(topic: &str) -> Duration {
         dv_contract::TOPIC_ASSI_STATE
         | dv_contract::TOPIC_DV_STATUS
         | dv_contract::TOPIC_CTRL_CMD
-        | dv_contract::TOPIC_CONES
-        | dv_contract::TOPIC_CONES_RAW
         | dv_contract::TOPIC_SLAM_POSE
         | dv_contract::TOPIC_ODOM => Duration::from_millis(100),
         _ => Duration::from_millis(200),
@@ -183,17 +181,6 @@ fn synth_summary(topic: &str, seq: u64) -> String {
         dv_contract::TOPIC_MOTOR_RPM => {
             let rpm = 800.0 + ((seq as f64) * 0.1).sin().abs() * 4000.0;
             format!("data: {rpm:.0} rpm")
-        }
-        dv_contract::TOPIC_CONES | dv_contract::TOPIC_CONES_RAW => {
-            let n = 10 + (seq % 6);
-            let (y, b, o) = (n / 2, n / 2, n % 2);
-            format!(
-                "MarkerArray: {n} cones (yellow={} blue={} orange={}) [{}]",
-                y,
-                b,
-                o,
-                ConeColor::Yellow as u8 // reference the enum so it stays used
-            )
         }
         dv_contract::TOPIC_SLAM_POSE | dv_contract::TOPIC_ODOM => {
             let x = (seq as f64) * 0.15;

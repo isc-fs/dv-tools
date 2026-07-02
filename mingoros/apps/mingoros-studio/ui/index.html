@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MingoROS · DV state</title>
+<style>
+  :root{
+    --bg:#0d1117; --bg2:#11161d; --panel:#161c24; --panel2:#1b222c;
+    --border:#232c37; --border2:#303b49;
+    --text:#e6e9ee; --muted:#93a0b0; --faint:#6b7787;
+    --green:#3fb950; --green-bg:#0f2417; --green-bd:#1c5a2a;
+    --red:#f85149; --red-bg:#2a1416; --red-bd:#82232a;
+    --amber:#e3b341; --amber-bg:#241c0a; --amber-bd:#6b5312;
+    --accent:#4c9eff;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);
+    font-size:14px;line-height:1.4;-webkit-font-smoothing:antialiased}
+  .appbar{display:flex;align-items:center;gap:14px;padding:12px 20px;
+    background:var(--bg2);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5}
+  .brand{display:flex;align-items:baseline;gap:8px}
+  .brand b{font-size:16px;font-weight:600;letter-spacing:.2px}
+  .brand span{font-size:12px;color:var(--muted)}
+  .spacer{flex:1}
+  .conn{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted)}
+  .conn input{width:52px;background:var(--panel);border:1px solid var(--border2);color:var(--text);
+    border-radius:6px;padding:4px 6px;font-family:var(--mono);font-size:12.5px}
+  .conn button{background:var(--panel2);border:1px solid var(--border2);color:var(--text);
+    border-radius:6px;padding:5px 12px;font-size:12.5px;cursor:pointer}
+  .conn button:hover{border-color:var(--accent)}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;
+    background:var(--panel);border:1px solid var(--border);font-size:12px}
+  .pill .d{width:8px;height:8px;border-radius:50%;background:var(--faint)}
+  main{max-width:1080px;margin:0 auto;padding:18px 20px 40px}
+  .hero{display:flex;align-items:center;gap:16px;border-radius:14px;padding:18px 22px;margin-bottom:18px;
+    border:1px solid var(--border);background:var(--panel)}
+  .hero .big{width:16px;height:16px;border-radius:50%;background:var(--faint);flex:none}
+  .hero h2{margin:0;font-size:22px;font-weight:600;letter-spacing:.4px}
+  .hero p{margin:2px 0 0;color:var(--muted);font-size:13px}
+  .hero.ok{background:var(--green-bg);border-color:var(--green-bd)}
+  .hero.ok .big{background:var(--green)} .hero.ok h2{color:#8ff0a4}
+  .hero.warn{background:var(--amber-bg);border-color:var(--amber-bd)}
+  .hero.warn .big{background:var(--amber)} .hero.warn h2{color:#f2cc60}
+  .hero.fault{background:var(--red-bg);border-color:var(--red-bd)}
+  .hero.fault .big{background:var(--red)} .hero.fault h2{color:#ffb4ae}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:18px}
+  .tile{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px 14px;min-height:84px}
+  .tile .k{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px}
+  .tile .k .d{width:9px;height:9px;border-radius:50%;background:var(--faint);flex:none}
+  .tile .v{font-family:var(--mono);font-size:19px;margin-top:7px;font-weight:500;word-break:break-word}
+  .tile .a{font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:3px}
+  .tile.fresh .d{background:var(--green)}
+  .tile.stale{border-color:var(--amber-bd)} .tile.stale .d{background:var(--amber)} .tile.stale .a{color:var(--amber)}
+  .tile.danger{background:var(--red-bg);border-color:var(--red-bd)} .tile.danger .d{background:var(--red)} .tile.danger .v{color:var(--red)}
+  .tile.idle .d{background:var(--faint)} .tile.idle .v{color:var(--faint);font-style:italic;font-size:14px}
+  .sec-title{font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--faint);margin:0 0 10px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+  .chip{display:inline-flex;align-items:center;gap:7px;padding:6px 11px;border-radius:8px;
+    background:var(--panel);border:1px solid var(--border);font-size:13px}
+  .chip .n{color:var(--muted)} .chip .val{font-family:var(--mono);font-weight:500}
+  .chip.good{border-color:var(--green-bd)} .chip.good .val{color:#8ff0a4}
+  .chip.bad{border-color:var(--red-bd);background:var(--red-bg)} .chip.bad .val{color:#ffb4ae}
+  .chip.neu .val{color:var(--muted)}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;color:var(--faint);font-weight:500;font-size:11px;text-transform:uppercase;
+    letter-spacing:.6px;padding:6px 10px;border-bottom:1px solid var(--border)}
+  td{padding:7px 10px;border-bottom:1px solid var(--border);font-family:var(--mono);vertical-align:top}
+  td.lab{font-family:var(--sans);color:var(--muted)} td.top{color:var(--faint)}
+  tr.danger td.val{color:var(--red);font-weight:500}
+  tr.stale td.age{color:var(--amber)}
+  .dim{color:var(--faint);font-style:italic}
+</style>
+</head>
+<body>
+<header class="appbar">
+  <div class="brand"><b>MingoROS</b><span>DV state · commissioning</span></div>
+  <div class="spacer"></div>
+  <div class="conn" id="conn-ctl"></div>
+  <div class="pill"><span class="d" id="conn-dot"></span><span id="conn-txt">connecting…</span></div>
+</header>
+<main>
+  <div class="hero" id="hero"><span class="big"></span><div><h2 id="hero-t">waiting for data…</h2><p id="hero-s"></p></div></div>
+
+  <div class="grid" id="tiles"></div>
+
+  <p class="sec-title">Safety signals (/debug)</p>
+  <div class="chips" id="chips"><span class="dim">waiting…</span></div>
+
+  <p class="sec-title">All priority topics</p>
+  <table><thead><tr><th style="width:96px">signal</th><th style="width:150px">topic</th><th>value</th><th style="width:90px">age</th></tr></thead>
+  <tbody id="rows"></tbody></table>
+</main>
+<script>
+  const IN_TAURI = !!(window.__TAURI__ && window.__TAURI__.core);
+  const $ = id => document.getElementById(id);
+
+  async function getState(){
+    if(IN_TAURI) return await window.__TAURI__.core.invoke('get_state');
+    const r = await fetch('/api/state',{cache:'no-store'}); return await r.json();
+  }
+  async function getMeta(){
+    try{ if(IN_TAURI) return await window.__TAURI__.core.invoke('get_meta');
+      return await (await fetch('/api/meta')).json(); }catch(e){ return {}; }
+  }
+
+  // Connection control: editable domain + Connect in Tauri; read-only in serve.
+  let meta = {};
+  function renderConn(){
+    const c = $('conn-ctl');
+    if(IN_TAURI){
+      c.innerHTML = 'domain <input id="dom" value="'+(meta.domain ?? 0)+'"/>'
+        + '<button id="go">Connect</button>';
+      $('go').onclick = async ()=>{ try{ await window.__TAURI__.core.invoke('connect',{domain:parseInt($('dom').value)||0}); meta=await getMeta(); renderConn(); }catch(e){} };
+    } else {
+      c.innerHTML = '<span>backend: <b style="color:var(--text)">'+(meta.backend||'—')+'</b></span>';
+    }
+  }
+
+  const DANGER = /EMERGENCY|ESTOP|FAILED|EBS:on/;
+  function chipClass(name,val){
+    const v=(val||'').toLowerCase();
+    if(name==='EBS'&&v==='on') return 'bad';
+    if(/estop|emergency|fail|open|fault/.test(v)) return 'bad';
+    if(/^(on|ok|closed|go|ready|yes|set|standstill|driving)$/.test(v)) return 'good';
+    return 'neu';
+  }
+  function renderChips(dbg){
+    const box=$('chips');
+    if(!dbg){ box.innerHTML='<span class="dim">no /debug yet</span>'; return; }
+    const toks=dbg.split(/[\s·|]+/).filter(t=>t.includes(':'));
+    if(!toks.length){ box.innerHTML='<span class="chip neu"><span class="val">'+dbg+'</span></span>'; return; }
+    box.innerHTML='';
+    for(const t of toks){
+      const [n,val]=t.split(':');
+      const c=document.createElement('span'); c.className='chip '+chipClass(n,val);
+      c.innerHTML='<span class="n">'+n+'</span><span class="val">'+val+'</span>';
+      box.appendChild(c);
+    }
+  }
+
+  function cls(row){
+    if(row.state!=='ok') return 'idle';
+    if(row.danger) return 'danger';
+    return row.fresh?'fresh':'stale';
+  }
+
+  function render(data){
+    const rows=data.topics||[];
+    let danger=false,stale=false,any=false,dbg=null;
+    // tiles
+    const t=$('tiles'); t.innerHTML='';
+    const rowsEl=$('rows'); rowsEl.innerHTML='';
+    for(const r of rows){
+      if(r.state==='ok'){ any=true; if(r.danger)danger=true; if(!r.fresh)stale=true; if(r.topic==='/debug')dbg=r.value; }
+      const age = r.state==='ok' ? (r.age_ms/1000).toFixed(1)+'s' : '';
+      const val = r.state==='ok' ? r.value : (r.state==='unavailable'?'unavailable':'waiting…');
+      if(r.topic!=='/debug'){
+        const c=document.createElement('div'); c.className='tile '+cls(r);
+        c.innerHTML='<div class="k"><span class="d"></span><span></span></div><div class="v"></div><div class="a"></div>';
+        c.querySelector('.k span:last-child').textContent=r.label;
+        c.querySelector('.v').textContent=val;
+        c.querySelector('.a').textContent=age;
+        t.appendChild(c);
+      }
+      const tr=document.createElement('tr'); tr.className=cls(r);
+      tr.innerHTML='<td class="lab"></td><td class="top"></td><td class="val"></td><td class="age"></td>';
+      tr.children[0].textContent=r.label; tr.children[1].textContent=r.topic;
+      tr.children[2].textContent=val; if(r.state!=='ok')tr.children[2].className='val dim';
+      tr.children[3].textContent=age;
+      rowsEl.appendChild(tr);
+    }
+    renderChips(dbg);
+    const hero=$('hero');
+    hero.className='hero '+(danger?'fault':stale?'warn':any?'ok':'');
+    $('hero-t').textContent=danger?'FAULT':(!any?'waiting for data…':stale?'STALE HEARTBEAT':'NOMINAL');
+    $('hero-s').textContent=danger?'One or more safety signals are in a fault state — see the red tiles.'
+      :(!any?'No topics yet. Check the connection / that the pipeline is up.'
+      :stale?'A heartbeat dropped past the '+(meta.watchdog_s||1.5)+' s watchdog.':'All priority signals fresh and healthy.');
+  }
+
+  async function poll(){
+    try{ render(await getState()); $('conn-dot').style.background='var(--green)'; $('conn-txt').textContent=IN_TAURI?'connected':'live'; }
+    catch(e){ $('conn-dot').style.background='var(--red)'; $('conn-txt').textContent='disconnected'; }
+  }
+  (async()=>{ meta=await getMeta(); renderConn(); poll(); setInterval(poll,250); })();
+</script>
+</body>
+</html>

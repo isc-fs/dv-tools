@@ -4,6 +4,11 @@ MingoROS joins the car's ROS 2 DDS graph directly — no ROS install on the lapt
 (pure-Rust RustDDS). This is the setup for a **laptop ↔ DV PC point-to-point
 Ethernet cable**, the field configuration.
 
+> ⚠️ **Before you connect: the car must be on stands, wheels off the ground.**
+> Once MingoROS is on the graph it can command actuation (EBS, control/mission
+> topics) and a mistaken command can move the car. Keep it jacked up and
+> freewheeling the entire time it's connected.
+
 ## The one thing to know first
 
 RustDDS (the DDS stack MingoROS uses) discovers peers over **UDP multicast**

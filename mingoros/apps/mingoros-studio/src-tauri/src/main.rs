@@ -39,16 +39,27 @@ impl Default for AppState {
 
 type Shared = Mutex<AppState>;
 
+/// Build the transport: the real ros2/RustDDS client, or the in-process fake
+/// (set `MINGOROS_FAKE=1`) for demos / development without a ROS graph.
+fn make_client(domain: u16) -> Result<Box<dyn RosClient>, String> {
+    if std::env::var_os("MINGOROS_FAKE").is_some() {
+        return Ok(Box::new(mingoros_core::ros::fake::FakeRos::new()));
+    }
+    std::env::set_var("ROS_DOMAIN_ID", domain.to_string());
+    Ok(Box::new(
+        mingoros_core::ros::ros2::Ros2Client::new().map_err(|e| e.to_string())?,
+    ))
+}
+
 /// Join (or re-join) the ROS 2 graph on `domain` and start the subscribers.
 fn connect_impl(domain: u16, state: &Shared) -> Result<(), String> {
-    std::env::set_var("ROS_DOMAIN_ID", domain.to_string());
-    let client = mingoros_core::ros::ros2::Ros2Client::new().map_err(|e| e.to_string())?;
+    let client = make_client(domain)?;
     let snap: Snapshot = Arc::new(Mutex::new(HashMap::new()));
-    let unavailable = dashboard::spawn_subscribers(&client, &snap);
+    let unavailable = dashboard::spawn_subscribers(client.as_ref(), &snap);
     let mut s = state.lock().unwrap();
     s.snap = snap;
     s.unavailable = unavailable;
-    s._client = Some(Box::new(client));
+    s._client = Some(client);
     s.domain = domain;
     s.connected = true;
     s.error = None;

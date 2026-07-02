@@ -1,16 +1,23 @@
 name: MingoROS Release
 
-# Release pipeline for the MingoROS surfaces:
-#   - `mingoros` CLI (Rust binaries — Linux / macOS)
-#   - MingoROS Studio (Tauri desktop bundles — .dmg / .deb / .AppImage / .rpm)
+# Release pipeline for the MingoROS surfaces — the same OS coverage MingoCAN
+# (can-flasher) and WarioCharger ship:
 #
-# A `mingoros-v*` tag (e.g. `mingoros-v0.2.0`) builds both surfaces in parallel
-# and attaches their artefacts to one GitHub Release. `workflow_dispatch` is a
-# manual dry-run (artefacts only, no Release).
+#   MingoROS Studio (Tauri desktop app):
+#     Linux   →  .deb  .AppImage  .rpm
+#     macOS   →  .dmg  (universal — Apple Silicon + Intel)
+#     Windows →  .msi  + NSIS .exe
+#   mingoros CLI (Rust binary):
+#     Linux x86_64 / aarch64, macOS aarch64 / x86_64, Windows x86_64
 #
-# Windows is deferred: the ros2/RustDDS transport pulls `pnet`, which needs the
-# Npcap SDK to link on Windows. The DV stack runs on Linux (car PC) + macOS
-# (dev laptops), so those are the shipped targets.
+# A `mingoros-v*` tag (e.g. `mingoros-v0.2.0`) builds everything in parallel and
+# attaches the artefacts to one GitHub Release. `workflow_dispatch` is a manual
+# dry-run (workflow artifacts only, no Release).
+#
+# Windows link note: the ros2/RustDDS transport pulls `pnet`, whose Windows
+# backend links Packet.lib / wpcap.lib. The Windows jobs install the Npcap SDK
+# and point the linker at it. (Running the Windows build also needs the Npcap
+# runtime installed — same requirement as Wireshark / other pcap tools.)
 
 on:
   push:
@@ -24,6 +31,9 @@ concurrency:
 
 permissions:
   contents: write
+
+env:
+  NPCAP_SDK_VERSION: '1.13'
 
 jobs:
   # ---- Release page (created once, before builds attach) ------
@@ -42,19 +52,19 @@ jobs:
           body: |
             **MingoROS** — the DV-stack ROS 2 topic debugger: `mingoros` CLI + MingoROS Studio (desktop app).
 
-            ### Install per surface
-
-            **CLI (`mingoros`)** — pre-built binaries below (Linux x86_64 / aarch64, macOS aarch64), or:
-            ```bash
-            cargo install --git https://github.com/isc-fs/dv-tools.git --tag ${{ github.ref_name }} mingoros-cli
-            ```
-
-            **MingoROS Studio** — pick the bundle for your OS:
-            - macOS: `.dmg` (ad-hoc signed; first launch needs **right-click → Open → confirm**)
-            - Linux: `.deb`, `.AppImage`, or `.rpm`
+            ### MingoROS Studio (desktop)
+            - **macOS**: `.dmg` (universal, ad-hoc signed — first launch needs **right-click → Open → confirm**)
+            - **Linux**: `.deb`, `.AppImage`, or `.rpm`
+            - **Windows**: `.msi` (preferred) or the NSIS `-setup.exe`.
+              Requires **Npcap** installed (the RustDDS transport uses pcap libs) — https://npcap.com
 
             Connect the laptop to the car PC over wired Ethernet (same subnet); the app auto-joins ROS domain 0.
 
+            ### CLI (`mingoros`)
+            Pre-built binaries below (Linux x86_64 / aarch64, macOS aarch64 / x86_64, Windows x86_64), or:
+            ```bash
+            cargo install --git https://github.com/isc-fs/dv-tools.git --tag ${{ github.ref_name }} mingoros-cli
+            ```
             ---
             **Full commit log**: https://github.com/isc-fs/dv-tools/commits/${{ github.ref_name }}
 
@@ -77,6 +87,12 @@ jobs:
           - target: aarch64-apple-darwin
             os: macos-latest
             apt_deps: ''
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            apt_deps: ''
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            apt_deps: ''
     defaults:
       run:
         working-directory: mingoros
@@ -86,6 +102,15 @@ jobs:
       - name: Install Linux build deps
         if: matrix.apt_deps != ''
         run: sudo apt-get update && sudo apt-get install -y ${{ matrix.apt_deps }}
+
+      - name: Install Npcap SDK (Windows — pnet/RustDDS link deps)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $url = "https://npcap.com/dist/npcap-sdk-$env:NPCAP_SDK_VERSION.zip"
+          curl.exe -L -o "$env:RUNNER_TEMP\npcap-sdk.zip" $url
+          Expand-Archive "$env:RUNNER_TEMP\npcap-sdk.zip" -DestinationPath "$env:RUNNER_TEMP\npcap-sdk"
+          "LIB=$env:RUNNER_TEMP\npcap-sdk\Lib\x64;$env:LIB" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Install Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -108,7 +133,8 @@ jobs:
             echo "version=dev-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Package
+      - name: Package (Unix)
+        if: matrix.os != 'windows-latest'
         shell: bash
         run: |
           STAGE="mingoros-${{ steps.version.outputs.version }}-${{ matrix.target }}"
@@ -117,6 +143,17 @@ jobs:
           cp README.md "$STAGE/" 2>/dev/null || true
           tar -czf "$STAGE.tar.gz" "$STAGE"
           echo "archive=mingoros/$STAGE.tar.gz" >> "$GITHUB_ENV"
+
+      - name: Package (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $stage = "mingoros-${{ steps.version.outputs.version }}-${{ matrix.target }}"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item "target/${{ matrix.target }}/release/mingoros.exe" $stage
+          if (Test-Path README.md) { Copy-Item README.md $stage }
+          Compress-Archive -Path $stage -DestinationPath "$stage.zip"
+          "archive=mingoros/$stage.zip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Upload as workflow artifact (always)
         uses: actions/upload-artifact@v4
@@ -151,8 +188,14 @@ jobs:
               libudev-dev
               libpcap-dev
               pkg-config
+            tauri_args: ''
           - os: macos-latest
             apt_deps: ''
+            # Universal binary → one .dmg runs on Apple Silicon + Intel.
+            tauri_args: '--target universal-apple-darwin'
+          - os: windows-latest
+            apt_deps: ''
+            tauri_args: ''
     defaults:
       run:
         working-directory: mingoros/apps/mingoros-studio
@@ -160,8 +203,17 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Linux WebKit / GTK build deps
-        if: matrix.apt_deps != ''
+        if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get update && sudo apt-get install -y ${{ matrix.apt_deps }}
+
+      - name: Install Npcap SDK (Windows — pnet/RustDDS link deps)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $url = "https://npcap.com/dist/npcap-sdk-$env:NPCAP_SDK_VERSION.zip"
+          curl.exe -L -o "$env:RUNNER_TEMP\npcap-sdk.zip" $url
+          Expand-Archive "$env:RUNNER_TEMP\npcap-sdk.zip" -DestinationPath "$env:RUNNER_TEMP\npcap-sdk"
+          "LIB=$env:RUNNER_TEMP\npcap-sdk\Lib\x64;$env:LIB" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Install Node.js
         uses: actions/setup-node@v4
@@ -174,6 +226,10 @@ jobs:
           toolchain: '1.95.0'
           cache: false
           rustflags: ''
+
+      - name: Add macOS universal targets
+        if: matrix.os == 'macos-latest'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
       - name: Cache cargo registry + target/
         uses: Swatinem/rust-cache@v2
@@ -195,3 +251,4 @@ jobs:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
           releaseDraft: false
           prerelease: false
+          args: ${{ matrix.tauri_args }}

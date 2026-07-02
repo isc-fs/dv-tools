@@ -68,6 +68,18 @@ same-subnet **Ethernet**, where RustDDS multicast discovery works. DDS over WiFi
 is unreliable (multicast discovery + lossy reliable traffic), so keep the link
 wired.
 
-Windows isn't a shipped target yet: the RustDDS stack pulls `pnet`, which needs
-the Npcap SDK to link on Windows. The DV stack runs on Linux (car PC) + macOS
-(dev laptops), which are the built targets.
+## Releases (Mac / Windows / Linux)
+
+`.github/workflows/mingoros-release.yml` builds installers for all three OSes on
+a `mingoros-v*` tag (and `mingoros-studio-ci.yml` compiles all three per PR):
+
+| OS | Studio bundle | CLI |
+|----|---------------|-----|
+| macOS | `.dmg` (universal — Apple Silicon + Intel) | `mingoros` (aarch64, x86_64) |
+| Linux | `.deb`, `.AppImage`, `.rpm` | `mingoros` (x86_64, aarch64) |
+| Windows | `.msi` + NSIS `-setup.exe` | `mingoros.exe` (x86_64) |
+
+Windows link note: the RustDDS transport pulls `pnet`, whose Windows backend
+links `Packet.lib`/`wpcap.lib`, so the Windows jobs install the **Npcap SDK**.
+Running the Windows build also needs **Npcap installed** at runtime (same
+requirement as Wireshark and other pcap-based tools) — https://npcap.com.

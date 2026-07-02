@@ -1,12 +1,12 @@
 name: mingoros-studio CI
 
-# Compile + frontend-build smoke check for the Tauri desktop app.
-# Runs only when the Studio's own files change, so a PR that doesn't touch
-# the app doesn't pay the cross-platform Tauri build tax.
+# Compile + frontend-build smoke check for the Tauri desktop app, on all three
+# target OSes (matches MingoCAN's can-studio CI). Runs only when the Studio's
+# own files change, so unrelated PRs don't pay the cross-platform build tax.
 #
-# Matrix: ubuntu + macos. Windows is deferred: the ros2/RustDDS transport
-# pulls `pnet`, which needs the Npcap SDK (Packet.lib) to link on Windows —
-# out of scope while the DV stack is Linux (car PC) / macOS (dev laptops).
+# Windows note: the ros2/RustDDS transport pulls `pnet`, whose Windows backend
+# links Packet.lib / wpcap.lib — so the Windows leg installs the Npcap SDK and
+# points the linker at it (the standard pcap-on-Windows recipe).
 
 on:
   push:
@@ -29,6 +29,9 @@ concurrency:
   group: mingoros-studio-ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  NPCAP_SDK_VERSION: '1.13'
+
 jobs:
   build:
     name: build (${{ matrix.os }})
@@ -48,6 +51,8 @@ jobs:
               pkg-config
           - os: macos-latest
             apt_deps: ''
+          - os: windows-latest
+            apt_deps: ''
     defaults:
       run:
         working-directory: mingoros/apps/mingoros-studio
@@ -55,8 +60,17 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Linux WebKit / GTK build deps
-        if: matrix.apt_deps != ''
+        if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get update && sudo apt-get install -y ${{ matrix.apt_deps }}
+
+      - name: Install Npcap SDK (Windows — pnet/RustDDS link deps)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $url = "https://npcap.com/dist/npcap-sdk-$env:NPCAP_SDK_VERSION.zip"
+          curl.exe -L -o "$env:RUNNER_TEMP\npcap-sdk.zip" $url
+          Expand-Archive "$env:RUNNER_TEMP\npcap-sdk.zip" -DestinationPath "$env:RUNNER_TEMP\npcap-sdk"
+          "LIB=$env:RUNNER_TEMP\npcap-sdk\Lib\x64;$env:LIB" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Install Node.js
         uses: actions/setup-node@v4
@@ -73,15 +87,12 @@ jobs:
       - name: Cache cargo registry + target/
         uses: Swatinem/rust-cache@v2
         with:
-          # The Cargo workspace root lives at mingoros/; cache its target/.
           workspaces: 'mingoros -> target'
 
       - name: Install frontend dependencies
         run: npm install --no-audit --no-fund
 
       - name: Generate platform icon variants
-        # tauri-build needs icon.icns (macOS) / icon.ico (Windows) generated
-        # from the committed icon.png. Local devs run this once too.
         run: npx --yes @tauri-apps/cli@^2 icon src-tauri/icons/icon.png
 
       - name: Type-check Svelte sources
@@ -91,8 +102,5 @@ jobs:
         run: npm run build
 
       - name: Cargo check the Tauri crate
-        # Full `cargo build`/bundle is large + slow per-PR; the check verifies
-        # the crate compiles + links + the frontend builds. Bundling lands in
-        # the release workflow. Run from the workspace root (mingoros/).
         run: cargo check -p mingoros-studio
         working-directory: mingoros

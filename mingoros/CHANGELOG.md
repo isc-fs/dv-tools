@@ -2,11 +2,11 @@
 
 ## mingoros-v0.1.0 — first release
 
-The first release of **MingoROS** — the ROS 2 topic debugger for the IFS08
+The first release of **ISC MingoROS** — the ROS 2 topic debugger for the IFS08
 Driverless stack (MingoCAN, but for ROS topics). No ROS install needed on the
 laptop (pure-Rust RustDDS).
 
-> ⚠️ **Safety:** MingoROS can command actuation (EBS, control/mission topics).
+> ⚠️ **Safety:** ISC MingoROS can command actuation (EBS, control/mission topics).
 > The car must be **on stands, wheels off the ground, at all times** while it is
 > in use — a persistent banner in the app and notices in the docs enforce this.
 

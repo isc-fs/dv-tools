@@ -5,7 +5,7 @@
     <!--
         Hardened-runtime entitlements for the macOS bundle.
 
-        MingoROS Studio joins the car's ROS 2 DDS graph over the network
+        ISC MingoROS joins the car's ROS 2 DDS graph over the network
         (RustDDS: UDP multicast discovery + unicast data). Unlike MingoCAN it
         loads NO foreign-signed dylibs (the transport is pure Rust), so it needs
         no `disable-library-validation` exception.

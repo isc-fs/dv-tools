@@ -1,4 +1,4 @@
-/* MingoROS Studio — Go / No-Go board global design system.
+/* ISC MingoROS — Go / No-Go board global design system.
    Ported byte-faithfully from the original self-contained dashboard.
    Cool steel neutrals biased toward the blue accent — a pit-wall
    instrument ground. The accent is interactive/brand ONLY; semantic
@@ -129,6 +129,10 @@ main {
 .brand .mark em {
     font-style: normal;
     color: var(--accent);
+}
+.brand .mark .isc {
+    color: var(--ink-faint);
+    font-weight: 700;
 }
 .brand .sub {
     font-size: 10.5px;

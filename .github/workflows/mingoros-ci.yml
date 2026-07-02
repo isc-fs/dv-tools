@@ -1,6 +1,6 @@
 name: mingoros CI
 
-# Build, lint, and test the MingoROS Rust workspace on every change to it.
+# Build, lint, and test the ISC MingoROS Rust workspace on every change to it.
 on:
   push:
     paths:

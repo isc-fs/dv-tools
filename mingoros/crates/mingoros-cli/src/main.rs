@@ -1,4 +1,4 @@
-//! MingoROS CLI — the `mingoros` binary.
+//! ISC MingoROS CLI — the `mingoros` binary.
 //!
 //! ROS2 topic debugger for the IFS08 DV stack: MingoCAN, but for ROS topics.
 //! The CLI house style follows can-flasher — a `clap` derive tree, a global
@@ -20,7 +20,7 @@ use tracing_subscriber::EnvFilter;
 #[command(
     name = "mingoros",
     version,
-    about = "MingoROS — ROS2 topic debugger for the IFS08 DV stack (MingoCAN, but for ROS topics)."
+    about = "ISC MingoROS — ROS2 topic debugger for the IFS08 DV stack (MingoCAN, but for ROS topics)."
 )]
 struct Cli {
     /// ROS transport backend.
@@ -382,7 +382,7 @@ fn render_state(
         out.push_str("\x1b[H\x1b[J"); // cursor home + clear to end
     }
     out.push_str(&format!(
-        "MingoROS · DV state   backend:{backend}   (Ctrl-C to exit)\n"
+        "ISC MingoROS · DV state   backend:{backend}   (Ctrl-C to exit)\n"
     ));
     out.push_str(&"─".repeat(76));
     out.push('\n');
@@ -492,7 +492,7 @@ fn cmd_agent(dev: Option<String>, baud: u32) -> Result<()> {
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => bail!(
             "`micro_ros_agent` not found on PATH. It's a ROS 2 / micro-ROS package — install it \
-             (or run MingoROS in the container where it lives) and ensure it's on PATH."
+             (or run ISC MingoROS in the container where it lives) and ensure it's on PATH."
         ),
         Err(e) => bail!("failed to launch micro_ros_agent: {e}"),
     }
@@ -590,7 +590,7 @@ fn cmd_bag(action: BagCmd) -> Result<()> {
             Ok(())
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => bail!(
-            "`ros2` not found on PATH. Bag record/replay wraps the ROS 2 CLI — run MingoROS \
+            "`ros2` not found on PATH. Bag record/replay wraps the ROS 2 CLI — run ISC MingoROS \
              where a sourced ROS 2 lives (e.g. the pipeline container)."
         ),
         Err(e) => bail!("failed to launch ros2 bag: {e}"),

@@ -1,9 +1,9 @@
-name: MingoROS Release
+name: ISC MingoROS Release
 
-# Release pipeline for the MingoROS surfaces — the same OS coverage MingoCAN
+# Release pipeline for the ISC MingoROS surfaces — the same OS coverage MingoCAN
 # (can-flasher) and WarioCharger ship:
 #
-#   MingoROS Studio (Tauri desktop app):
+#   ISC MingoROS (Tauri desktop app):
 #     Linux   →  .deb  .AppImage  .rpm
 #     macOS   →  .dmg  (universal — Apple Silicon + Intel)
 #     Windows →  .msi  + NSIS .exe
@@ -83,9 +83,9 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            **MingoROS** — the DV-stack ROS 2 topic debugger: the `mingoros` CLI + the MingoROS desktop app.
+            **ISC MingoROS** — the DV-stack ROS 2 topic debugger: the `mingoros` CLI + the ISC MingoROS desktop app.
 
-            ### MingoROS (desktop app)
+            ### ISC MingoROS (desktop app)
             - **macOS**: `.dmg` (universal, ad-hoc signed — first launch needs **right-click → Open → confirm**)
             - **Linux**: `.deb`, `.AppImage`, or `.rpm`
             - **Windows**: `.msi` (preferred) or the NSIS `-setup.exe`.
@@ -203,7 +203,7 @@ jobs:
           files: ${{ env.archive }}
           fail_on_unmatched_files: true
 
-  # ---- MingoROS Studio bundles --------------------------------
+  # ---- ISC MingoROS bundles --------------------------------
   studio-build:
     name: studio (${{ matrix.os }})
     needs: [create-release]

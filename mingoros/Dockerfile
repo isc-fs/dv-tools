@@ -1,7 +1,7 @@
-# MingoROS — the `ros2`-enabled CLI as a Linux image, so it can join the DV
+# ISC MingoROS — the `ros2`-enabled CLI as a Linux image, so it can join the DV
 # pipeline's DDS domain (RTPS/DDS over UDP, interoperating with rmw_fastrtps).
 # Run it with `--network host` on the same domain as the pipeline (e.g. next to
-# IFSSIM's dv_pipeline_stack). This is also how MingoROS ships into the pipeline.
+# IFSSIM's dv_pipeline_stack). This is also how ISC MingoROS ships into the pipeline.
 FROM rust:1.95-bookworm AS build
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libpcap-dev libudev-dev pkg-config \

@@ -1,4 +1,4 @@
-//! The ROS transport abstraction — MingoROS's equivalent of can-flasher's
+//! The ROS transport abstraction — ISC MingoROS's equivalent of can-flasher's
 //! `CanBackend` trait. Everything above this layer (CLI commands, the future
 //! GUI) talks to a `dyn RosClient` and never knows whether it's driving a
 //! pure-Rust DDS client, a micro-ROS agent bridge, or the in-process fake.

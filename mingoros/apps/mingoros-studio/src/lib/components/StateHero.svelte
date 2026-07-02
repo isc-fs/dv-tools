@@ -1,6 +1,6 @@
 <!--
     Hero banner: the dominant AS-state readout on the left with its
-    status rail, and the rotated "bench verdict" inspection stamp on
+    status rail, and the "bench verdict" inspection stamp on
     the right (READY TO DRIVE / NOT READY / FAULT / STANDBY with the
     spelled-out blocking interlocks). Theming class comes from the
     verdict state; the stamp call shrinks when the word is long.

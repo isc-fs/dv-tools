@@ -50,9 +50,9 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            **MingoROS** — the DV-stack ROS 2 topic debugger: `mingoros` CLI + MingoROS Studio (desktop app).
+            **MingoROS** — the DV-stack ROS 2 topic debugger: the `mingoros` CLI + the MingoROS desktop app.
 
-            ### MingoROS Studio (desktop)
+            ### MingoROS (desktop app)
             - **macOS**: `.dmg` (universal, ad-hoc signed — first launch needs **right-click → Open → confirm**)
             - **Linux**: `.deb`, `.AppImage`, or `.rpm`
             - **Windows**: `.msi` (preferred) or the NSIS `-setup.exe`.

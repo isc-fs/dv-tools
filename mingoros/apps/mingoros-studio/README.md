@@ -1,8 +1,10 @@
-# MingoROS Studio
+# MingoROS (desktop app)
 
 The native desktop dashboard — MingoCAN's `can-studio` parallel for ROS. A
 **Tauri 2 + Svelte 5 + TypeScript** app: the same `mingoros-core` engine as the
-CLI, in a window.
+CLI, in a window. The app's product name is **MingoROS** (the `.app` / window /
+dock name); the crate + folder stay `mingoros-studio`, mirroring how MingoCAN's
+app is "MingoCAN" while its crate is `can-studio`.
 
 It runs on the **laptop** and joins the car PC's ROS 2 DDS graph directly over
 **Ethernet** (the `ros2` / RustDDS backend). The window renders a live

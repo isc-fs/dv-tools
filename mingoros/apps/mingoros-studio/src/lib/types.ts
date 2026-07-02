@@ -58,3 +58,9 @@ export interface Verdict {
     state: OverallState;
     reason: string;
 }
+
+/** Result of the `/force_ebs` (std_srvs/SetBool) service call. */
+export interface EbsResult {
+    success: boolean;
+    message: string;
+}

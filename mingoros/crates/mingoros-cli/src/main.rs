@@ -42,6 +42,14 @@ enum Backend {
     Ros2,
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
+enum EbsState {
+    /// Engage the EBS — fire the emergency brake (needs --force).
+    On,
+    /// Return the EBS to normal.
+    Off,
+}
+
 #[derive(Subcommand)]
 enum Cmd {
     /// List topics visible on the graph (name, type, QoS).
@@ -107,6 +115,19 @@ enum Cmd {
         #[command(subcommand)]
         action: BagCmd,
     },
+
+    /// Trigger the uDV's force-EBS service (std_srvs/SetBool) — engage the
+    /// Emergency Brake System for a car-on-stands checkup, then release it.
+    /// `on` requires --force (it fires the emergency brake).
+    #[command(name = "force-ebs")]
+    ForceEbs {
+        /// `on` engages the EBS (needs --force); `off` returns it to normal.
+        #[arg(value_enum)]
+        state: EbsState,
+        /// Arm the actuation — required for `on`.
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -149,6 +170,7 @@ fn main() -> Result<()> {
         Cmd::Udv => cmd_udv(cli.json),
         Cmd::Agent { dev, baud } => cmd_agent(dev, baud),
         Cmd::Bag { action } => cmd_bag(action),
+        Cmd::ForceEbs { state, force } => cmd_force_ebs(cli.backend, state, force),
     }
 }
 
@@ -454,6 +476,45 @@ fn cmd_publish(backend: Backend, topic: &str, value: &str, force: bool) -> Resul
     client.publish(topic, value)?;
     println!("published to {topic}: {value}");
     Ok(())
+}
+
+fn cmd_force_ebs(backend: Backend, state: EbsState, force: bool) -> Result<()> {
+    let engage = matches!(state, EbsState::On);
+    // Actuation safety gate: engaging the EBS must be armed explicitly.
+    if engage && !force {
+        bail!(
+            "refusing to ENGAGE the emergency brake without --force.\n\
+             `force-ebs on` fires the EBS actuators via {} — only do this with the car \
+             jacked up / on stands. Re-run:  mingoros force-ebs on --force",
+            dv_contract::SERVICE_FORCE_EBS
+        );
+    }
+    let client = make_client(backend)?;
+    eprintln!(
+        "{} the EBS via {} (backend: {}) …",
+        if engage { "ENGAGING" } else { "releasing" },
+        dv_contract::SERVICE_FORCE_EBS,
+        client.backend_name()
+    );
+    let out = client.call_set_bool(dv_contract::SERVICE_FORCE_EBS, engage)?;
+    let msg = if out.message.is_empty() {
+        "(no message)"
+    } else {
+        &out.message
+    };
+    if out.success {
+        println!(
+            "{} — uDV: {msg}",
+            if engage {
+                "EBS ENGAGED"
+            } else {
+                "EBS released (normal)"
+            }
+        );
+        Ok(())
+    } else {
+        bail!("uDV reported the service FAILED — {msg}");
+    }
 }
 
 fn cmd_bag(action: BagCmd) -> Result<()> {

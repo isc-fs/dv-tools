@@ -8,10 +8,13 @@
 //! Read-only by design for now: publishing onto a safety-critical graph is
 //! gated behind the actuation safety gate + a later, deliberate feature.
 
-use super::{RosClient, RosError, Sample, SampleStream, TopicInfo};
+use super::{RosClient, RosError, Sample, SampleStream, SetBoolOutcome, TopicInfo};
 use crate::{dv_contract, msgs};
 use ros2_client::ros2::{policy, Duration as DdsDuration, QosPolicies, QosPolicyBuilder};
-use ros2_client::{Context, MessageTypeName, Name, Node, NodeName, NodeOptions};
+use ros2_client::{
+    AService, Context, Message, MessageTypeName, Name, Node, NodeName, NodeOptions, ServiceMapping,
+    ServiceTypeName,
+};
 use serde::de::DeserializeOwned;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -24,6 +27,24 @@ const RECV_TIMEOUT: Duration = Duration::from_secs(20);
 const POLL: Duration = Duration::from_millis(20);
 /// Discovery settle time after node creation before topics are enumerable.
 const DISCOVERY_SETTLE: Duration = Duration::from_secs(3);
+
+/// How long a `call_set_bool` service call waits for the server's response
+/// before giving up (the uDV replies immediately, so a timeout means the
+/// service isn't reachable — uDV down / wrong domain / agent not bridging).
+const SERVICE_CALL_TIMEOUT: Duration = Duration::from_secs(8);
+/// Settle time after creating the service client, to let DDS discovery match it
+/// to the server before the first request goes out.
+const SERVICE_MATCH_SETTLE: Duration = Duration::from_millis(800);
+/// Re-send a still-unanswered request this often — covers the brief window
+/// where the client hasn't matched the server yet. `SetBool(true)` is
+/// idempotent (it re-asserts the EBS pins), so a duplicate is harmless.
+const SERVICE_RESEND: Duration = Duration::from_millis(2500);
+
+// std_srvs/SetBool request+response are `Message`s (Serialize + DeserializeOwned)
+// — the trait has no blanket impl, so mark them explicitly. Kept here because
+// `ros2_client::Message` only exists under the `ros2` feature.
+impl Message for msgs::SetBoolRequest {}
+impl Message for msgs::SetBoolResponse {}
 
 pub struct Ros2Client {
     node: Mutex<Node>,
@@ -310,6 +331,77 @@ impl RosClient for Ros2Client {
                 .to_string(),
         ))
     }
+
+    fn call_set_bool(&self, service: &str, data: bool) -> Result<SetBoolOutcome, RosError> {
+        let name = Name::parse(service)
+            .map_err(|e| RosError::Other(format!("bad service name {service}: {e:?}")))?;
+        let qos = qos_service();
+
+        // Create the client under the node lock, then RELEASE the lock before
+        // the (potentially multi-second) request/response wait — the RX
+        // threads never touch the node lock while polling, but keeping it held
+        // would block any concurrent subscribe/connect for the whole call.
+        let client = {
+            let mut node = self.node.lock().unwrap();
+            node.create_client::<AService<msgs::SetBoolRequest, msgs::SetBoolResponse>>(
+                ServiceMapping::Enhanced,
+                &name,
+                &ServiceTypeName::new("std_srvs", "SetBool"),
+                qos.clone(),
+                qos,
+            )
+            .map_err(|e| RosError::Other(format!("create service client {service}: {e:?}")))?
+        };
+
+        // Let discovery match the client to the uDV's server before the first
+        // request, then (re)send until a response arrives or we time out.
+        // We track the id of every request we send and accept ONLY a response
+        // whose RmwRequestId is one of ours — `receive_response()` can hand back
+        // a response addressed to a different client, and a resend puts a second
+        // (identical, idempotent) request in flight, so id-matching is required
+        // to never mistake someone else's / a stale reply for ours.
+        std::thread::sleep(SERVICE_MATCH_SETTLE);
+        let deadline = Instant::now() + SERVICE_CALL_TIMEOUT;
+        let mut last_send: Option<Instant> = None;
+        let mut sent_ids = Vec::new();
+        loop {
+            if last_send
+                .map(|t| t.elapsed() >= SERVICE_RESEND)
+                .unwrap_or(true)
+            {
+                let id = client
+                    .send_request(msgs::SetBoolRequest { data })
+                    .map_err(|e| RosError::Other(format!("send {service} request: {e:?}")))?;
+                sent_ids.push(id);
+                last_send = Some(Instant::now());
+            }
+            match client.receive_response() {
+                Ok(Some((id, resp))) => {
+                    if sent_ids.contains(&id) {
+                        return Ok(SetBoolOutcome {
+                            success: resp.success,
+                            message: resp.message,
+                        });
+                    }
+                    // A response to a different request — ignore and keep waiting.
+                }
+                Ok(None) => {}
+                Err(e) => {
+                    return Err(RosError::Other(format!(
+                        "receive {service} response: {e:?}"
+                    )))
+                }
+            }
+            if Instant::now() >= deadline {
+                return Err(RosError::Other(format!(
+                    "service {service} timed out after {}s — is the uDV up and \
+                     is {service} advertised on this ROS domain?",
+                    SERVICE_CALL_TIMEOUT.as_secs()
+                )));
+            }
+            std::thread::sleep(POLL);
+        }
+    }
 }
 
 struct Ros2Stream<T> {
@@ -380,6 +472,17 @@ fn qos_latched() -> QosPolicies {
             max_blocking_time: DdsDuration::from_millis(100),
         })
         .durability(policy::Durability::TransientLocal)
+        .build()
+}
+
+/// Service request/response QoS — RELIABLE + KeepLast(1), the profile ROS 2
+/// services use by default (rmw_fastrtps), which the micro-ROS agent bridges.
+fn qos_service() -> QosPolicies {
+    QosPolicyBuilder::new()
+        .history(policy::History::KeepLast { depth: 1 })
+        .reliability(policy::Reliability::Reliable {
+            max_blocking_time: DdsDuration::from_millis(100),
+        })
         .build()
 }
 

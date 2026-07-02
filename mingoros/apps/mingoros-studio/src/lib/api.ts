@@ -11,7 +11,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 
-import type { Meta, StateResponse, TopicSnapshot } from './types';
+import type { EbsResult, Meta, StateResponse, TopicSnapshot } from './types';
 
 /**
  * True only inside the bundled Tauri webview. We detect the *absence*
@@ -92,6 +92,24 @@ export function getMeta(): Promise<Meta> {
 export function connect(domain: number): Promise<void> {
     if (IN_BROWSER) return Promise.resolve();
     return invoke<void>('connect', { domain });
+}
+
+/**
+ * Trigger the uDV's `/force_ebs` service (std_srvs/SetBool). `engage=true`
+ * fires the Emergency Brake System for a car-on-stands checkup; `false` returns
+ * it to normal. Gate this behind an explicit confirmation in the UI. In the
+ * browser demo there is no backend, so it simulates a successful call.
+ */
+export function forceEbs(engage: boolean): Promise<EbsResult> {
+    if (IN_BROWSER) {
+        return Promise.resolve({
+            success: true,
+            message: engage
+                ? 'EBS forced open (demo — no backend)'
+                : 'EBS returned to normal (demo — no backend)',
+        });
+    }
+    return invoke<EbsResult>('force_ebs', { engage });
 }
 
 /** Whether the Connect control is wired to a real backend. */

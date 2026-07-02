@@ -1,4 +1,4 @@
-//! MingoROS Studio — Tauri command surface + app body.
+//! MingoROS — Tauri command surface + app body.
 //!
 //! `main.rs` is the binary entry point; the actual app body lives here (mirrors
 //! MingoCAN's can-studio) so the window setup + commands are one module and a
@@ -16,12 +16,11 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
-/// Shared app state: the live snapshot + the DDS client kept alive.
+/// Live dashboard state: the snapshot + connection metadata. Locked briefly on
+/// every 250 ms `get_state` poll, so nothing slow may hold it.
 struct AppState {
     snap: Snapshot,
     unavailable: Vec<&'static str>,
-    // Held so the DDS node stays alive for the RX threads' lifetime.
-    _client: Option<Box<dyn RosClient>>,
     domain: u16,
     connected: bool,
     error: Option<String>,
@@ -32,7 +31,6 @@ impl Default for AppState {
         Self {
             snap: Arc::new(Mutex::new(HashMap::new())),
             unavailable: Vec::new(),
-            _client: None,
             domain: 0,
             connected: false,
             error: None,
@@ -41,6 +39,12 @@ impl Default for AppState {
 }
 
 type Shared = Mutex<AppState>;
+
+/// The live DDS client, held **separately** from [`AppState`] and kept alive so
+/// the RX threads' subscriptions stay valid. A service call (`force_ebs`) can
+/// hold this for a few seconds; keeping it out of `AppState` means that never
+/// stalls the dashboard poll, which only touches `AppState`.
+type ClientCell = Mutex<Option<Box<dyn RosClient>>>;
 
 /// Build the transport: the real ros2/RustDDS client, or the in-process fake
 /// (set `MINGOROS_FAKE=1`) for demos / development without a ROS graph.
@@ -55,29 +59,32 @@ fn make_client(domain: u16) -> Result<Box<dyn RosClient>, String> {
 }
 
 /// Join (or re-join) the ROS 2 graph on `domain` and start the subscribers.
-fn connect_impl(domain: u16, state: &Shared) -> Result<(), String> {
+fn connect_impl(domain: u16, state: &Shared, client_cell: &ClientCell) -> Result<(), String> {
     let client = make_client(domain)?;
     let snap: Snapshot = Arc::new(Mutex::new(HashMap::new()));
     let unavailable = dashboard::spawn_subscribers(client.as_ref(), &snap);
-    let mut s = state.lock().unwrap();
-    s.snap = snap;
-    s.unavailable = unavailable;
-    s._client = Some(client);
-    s.domain = domain;
-    s.connected = true;
-    s.error = None;
+    {
+        let mut s = state.lock().unwrap_or_else(|p| p.into_inner());
+        s.snap = snap;
+        s.unavailable = unavailable;
+        s.domain = domain;
+        s.connected = true;
+        s.error = None;
+    }
+    // Kept alive for the RX threads' lifetime; used by `force_ebs`.
+    *client_cell.lock().unwrap_or_else(|p| p.into_inner()) = Some(client);
     Ok(())
 }
 
 #[tauri::command]
 fn get_state(state: tauri::State<Shared>) -> serde_json::Value {
-    let s = state.lock().unwrap();
+    let s = state.lock().unwrap_or_else(|p| p.into_inner());
     serde_json::json!({ "topics": dashboard::snapshot(&s.snap, &s.unavailable) })
 }
 
 #[tauri::command]
 fn get_meta(state: tauri::State<Shared>) -> serde_json::Value {
-    let s = state.lock().unwrap();
+    let s = state.lock().unwrap_or_else(|p| p.into_inner());
     serde_json::json!({
         "backend": "ros2",
         "domain": s.domain,
@@ -88,28 +95,55 @@ fn get_meta(state: tauri::State<Shared>) -> serde_json::Value {
 }
 
 #[tauri::command]
-fn connect(domain: u16, state: tauri::State<Shared>) -> Result<(), String> {
-    if let Err(e) = connect_impl(domain, &state) {
-        state.lock().unwrap().error = Some(e.clone());
+fn connect(
+    domain: u16,
+    state: tauri::State<Shared>,
+    client: tauri::State<ClientCell>,
+) -> Result<(), String> {
+    if let Err(e) = connect_impl(domain, &state, &client) {
+        state.lock().unwrap_or_else(|p| p.into_inner()).error = Some(e.clone());
         return Err(e);
     }
     Ok(())
 }
 
+/// Call the uDV's `/force_ebs` service (std_srvs/SetBool). `engage=true` fires
+/// the Emergency Brake System (car-on-stands checkup); `false` returns it to
+/// normal. The frontend gates this behind an explicit confirmation. Locks the
+/// client cell only — never `AppState` — so the dashboard keeps updating.
+#[tauri::command]
+fn force_ebs(engage: bool, client: tauri::State<ClientCell>) -> Result<serde_json::Value, String> {
+    let guard = client
+        .lock()
+        .map_err(|_| "client state lock poisoned — reconnect and retry".to_string())?;
+    let c = guard
+        .as_ref()
+        .ok_or_else(|| "not connected to a ROS graph yet".to_string())?;
+    let out = c
+        .call_set_bool(mingoros_core::dv_contract::SERVICE_FORCE_EBS, engage)
+        .map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({ "success": out.success, "message": out.message }))
+}
+
 /// App entry — called from `main.rs`.
 pub fn run() {
+    let client_cell: ClientCell = Mutex::new(None);
     tauri::Builder::default()
         .manage(Mutex::new(AppState::default()))
+        .manage(client_cell)
         .setup(|app| {
             // Auto-connect to domain 0 at launch; a failure is surfaced in
             // get_meta().error rather than blocking the window.
             let state = app.state::<Shared>();
-            if let Err(e) = connect_impl(0, state.inner()) {
-                state.lock().unwrap().error = Some(e);
+            let client = app.state::<ClientCell>();
+            if let Err(e) = connect_impl(0, state.inner(), client.inner()) {
+                state.lock().unwrap_or_else(|p| p.into_inner()).error = Some(e);
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_state, get_meta, connect])
+        .invoke_handler(tauri::generate_handler![
+            get_state, get_meta, connect, force_ebs
+        ])
         .run(tauri::generate_context!())
         .expect("error while running MingoROS");
 }

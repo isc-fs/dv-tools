@@ -57,6 +57,14 @@ pub struct Sample {
     pub summary: String,
 }
 
+/// The result of a `std_srvs/SetBool` service call (e.g. `/force_ebs`): the
+/// server's `success` flag + optional `message`.
+#[derive(Debug, Clone, Serialize)]
+pub struct SetBoolOutcome {
+    pub success: bool,
+    pub message: String,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum RosError {
     #[error("topic not found: {0}")]
@@ -79,8 +87,11 @@ pub trait SampleStream: Send {
 }
 
 /// A connection to a ROS graph (real or fake). The single seam every backend
-/// implements — the analogue of can-flasher's `CanBackend`.
-pub trait RosClient: Send {
+/// implements — the analogue of can-flasher's `CanBackend`. `Send + Sync` so it
+/// can live in a shared Tauri managed cell and be called from any command
+/// thread (both backends satisfy this: `FakeRos` is a unit struct, `Ros2Client`
+/// is a `Mutex<Node>` + `Context`).
+pub trait RosClient: Send + Sync {
     /// Name of the backend, for diagnostics (`"fake"`, `"ros2"`).
     fn backend_name(&self) -> &'static str;
 
@@ -99,4 +110,11 @@ pub trait RosClient: Send {
     /// `ros2` backend will type-check + serialise). Routed through the
     /// actuation safety gate at the CLI/GUI layer for command topics.
     fn publish(&self, topic: &str, value: &str) -> Result<(), RosError>;
+
+    /// Call a `std_srvs/SetBool` service (request → response), blocking until
+    /// the response arrives or the call times out. This is the seam for the
+    /// uDV's actuation services — notably `/force_ebs` (engage the Emergency
+    /// Brake System for a car-on-stands checkup). Always gate it behind the
+    /// actuation safety gate at the CLI / GUI layer.
+    fn call_set_bool(&self, service: &str, data: bool) -> Result<SetBoolOutcome, RosError>;
 }

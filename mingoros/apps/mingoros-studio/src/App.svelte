@@ -109,8 +109,8 @@
         }
     }
 
-    async function reconnect(domain: number): Promise<void> {
-        await connect(domain);
+    async function reconnect(domain: number, iface: string): Promise<void> {
+        await connect(domain, iface);
         meta = await getMeta();
     }
 

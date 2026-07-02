@@ -11,6 +11,7 @@ use mingoros_core::dashboard;
 use mingoros_core::dv_contract::{self, Qos, Reliability};
 use mingoros_core::ros::{fake::FakeRos, RosClient};
 use std::collections::HashMap;
+use std::net::IpAddr;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tracing_subscriber::EnvFilter;
@@ -26,12 +27,30 @@ struct Cli {
     #[arg(long, value_enum, default_value_t = Backend::Fake, global = true)]
     backend: Backend,
 
+    /// ROS domain id (must match the DV PC pipeline — the pipeline uses 0).
+    #[arg(long, default_value_t = 0, global = true)]
+    domain: u16,
+
+    /// Bind DDS to this LOCAL interface IP (your direct-link Ethernet IP), so
+    /// discovery goes over the cable to the DV PC instead of WiFi. `ros2`
+    /// backend only. RustDDS has no remote-peer knob — this is the local NIC.
+    #[arg(long, value_name = "IP", global = true)]
+    iface: Option<IpAddr>,
+
     /// Emit machine-readable JSON instead of human-formatted output.
     #[arg(long, global = true)]
     json: bool,
 
     #[command(subcommand)]
     cmd: Cmd,
+}
+
+/// The connection knobs threaded to every command that opens a client.
+#[derive(Copy, Clone)]
+struct Conn {
+    backend: Backend,
+    domain: u16,
+    iface: Option<IpAddr>,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
@@ -157,35 +176,43 @@ fn main() -> Result<()> {
         .init();
 
     let cli = Cli::parse();
+    let conn = Conn {
+        backend: cli.backend,
+        domain: cli.domain,
+        iface: cli.iface,
+    };
     match cli.cmd {
-        Cmd::Topics => cmd_topics(cli.backend, cli.json),
-        Cmd::Echo { topic, count } => cmd_echo(cli.backend, cli.json, &topic, count),
-        Cmd::Hz { topic, samples } => cmd_hz(cli.backend, &topic, samples),
+        Cmd::Topics => cmd_topics(conn, cli.json),
+        Cmd::Echo { topic, count } => cmd_echo(conn, cli.json, &topic, count),
+        Cmd::Hz { topic, samples } => cmd_hz(conn, &topic, samples),
         Cmd::Publish {
             topic,
             value,
             force,
-        } => cmd_publish(cli.backend, &topic, &value, force),
-        Cmd::State { duration } => cmd_state(cli.backend, cli.json, duration),
+        } => cmd_publish(conn, &topic, &value, force),
+        Cmd::State { duration } => cmd_state(conn, cli.json, duration),
         Cmd::Udv => cmd_udv(cli.json),
         Cmd::Agent { dev, baud } => cmd_agent(dev, baud),
         Cmd::Bag { action } => cmd_bag(action),
-        Cmd::ForceEbs { state, force } => cmd_force_ebs(cli.backend, state, force),
+        Cmd::ForceEbs { state, force } => cmd_force_ebs(conn, state, force),
     }
 }
 
-fn make_client(backend: Backend) -> Result<Box<dyn RosClient>> {
-    match backend {
+fn make_client(conn: Conn) -> Result<Box<dyn RosClient>> {
+    match conn.backend {
         Backend::Fake => Ok(Box::new(FakeRos::new())),
         #[cfg(feature = "ros2")]
-        Backend::Ros2 => Ok(Box::new(mingoros_core::ros::ros2::Ros2Client::new()?)),
+        Backend::Ros2 => Ok(Box::new(mingoros_core::ros::ros2::Ros2Client::new(
+            conn.domain,
+            conn.iface,
+        )?)),
         #[cfg(not(feature = "ros2"))]
         Backend::Ros2 => Err(mingoros_core::ros::RosError::TransportUnavailable.into()),
     }
 }
 
-fn cmd_topics(backend: Backend, json: bool) -> Result<()> {
-    let client = make_client(backend)?;
+fn cmd_topics(conn: Conn, json: bool) -> Result<()> {
+    let client = make_client(conn)?;
     let mut topics = client.list_topics()?;
     topics.sort_by(|a, b| a.name.cmp(&b.name));
 
@@ -194,7 +221,15 @@ fn cmd_topics(backend: Backend, json: bool) -> Result<()> {
         return Ok(());
     }
 
-    eprintln!("backend: {}\n", client.backend_name());
+    let ctx = conn
+        .iface
+        .map(|i| format!("  iface: {i}"))
+        .unwrap_or_default();
+    eprintln!(
+        "backend: {}  domain: {}{ctx}\n",
+        client.backend_name(),
+        conn.domain
+    );
     println!("{:<16} {:<38} {:<24} NOTE", "TOPIC", "TYPE", "QOS");
     for t in &topics {
         println!(
@@ -209,8 +244,8 @@ fn cmd_topics(backend: Backend, json: bool) -> Result<()> {
     Ok(())
 }
 
-fn cmd_echo(backend: Backend, json: bool, topic: &str, count: Option<u64>) -> Result<()> {
-    let client = make_client(backend)?;
+fn cmd_echo(conn: Conn, json: bool, topic: &str, count: Option<u64>) -> Result<()> {
+    let client = make_client(conn)?;
     let mut stream = client.subscribe(topic)?;
     if !json {
         eprintln!("echoing {topic} (Ctrl-C to stop)\n");
@@ -232,11 +267,11 @@ fn cmd_echo(backend: Backend, json: bool, topic: &str, count: Option<u64>) -> Re
     Ok(())
 }
 
-fn cmd_hz(backend: Backend, topic: &str, samples: u64) -> Result<()> {
+fn cmd_hz(conn: Conn, topic: &str, samples: u64) -> Result<()> {
     if samples < 2 {
         bail!("--samples must be >= 2 to compute a rate");
     }
-    let client = make_client(backend)?;
+    let client = make_client(conn)?;
     let mut stream = client.subscribe(topic)?;
     eprintln!("measuring {topic} over {samples} samples...");
 
@@ -286,8 +321,8 @@ fn cmd_hz(backend: Backend, topic: &str, samples: u64) -> Result<()> {
     Ok(())
 }
 
-fn cmd_state(backend: Backend, json: bool, duration: Option<u64>) -> Result<()> {
-    let client = make_client(backend)?;
+fn cmd_state(conn: Conn, json: bool, duration: Option<u64>) -> Result<()> {
+    let client = make_client(conn)?;
     let backend_name = client.backend_name();
     let snap: dashboard::Snapshot = Arc::new(Mutex::new(HashMap::new()));
     let unavailable = dashboard::spawn_subscribers(client.as_ref(), &snap);
@@ -463,7 +498,7 @@ fn cmd_agent(dev: Option<String>, baud: u32) -> Result<()> {
     }
 }
 
-fn cmd_publish(backend: Backend, topic: &str, value: &str, force: bool) -> Result<()> {
+fn cmd_publish(conn: Conn, topic: &str, value: &str, force: bool) -> Result<()> {
     // ROS-side actuation safety gate (mirrors the CAN danger-frame deny-list).
     if is_actuation(topic) && !force {
         bail!(
@@ -472,13 +507,13 @@ fn cmd_publish(backend: Backend, topic: &str, value: &str, force: bool) -> Resul
              really intend to drive it."
         );
     }
-    let client = make_client(backend)?;
+    let client = make_client(conn)?;
     client.publish(topic, value)?;
     println!("published to {topic}: {value}");
     Ok(())
 }
 
-fn cmd_force_ebs(backend: Backend, state: EbsState, force: bool) -> Result<()> {
+fn cmd_force_ebs(conn: Conn, state: EbsState, force: bool) -> Result<()> {
     let engage = matches!(state, EbsState::On);
     // Actuation safety gate: engaging the EBS must be armed explicitly.
     if engage && !force {
@@ -489,7 +524,7 @@ fn cmd_force_ebs(backend: Backend, state: EbsState, force: bool) -> Result<()> {
             dv_contract::SERVICE_FORCE_EBS
         );
     }
-    let client = make_client(backend)?;
+    let client = make_client(conn)?;
     eprintln!(
         "{} the EBS via {} (backend: {}) …",
         if engage { "ENGAGING" } else { "releasing" },

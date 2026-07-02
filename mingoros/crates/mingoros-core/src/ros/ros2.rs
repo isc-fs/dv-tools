@@ -11,11 +11,13 @@
 use super::{RosClient, RosError, Sample, SampleStream, SetBoolOutcome, TopicInfo};
 use crate::{dv_contract, msgs};
 use ros2_client::ros2::{policy, Duration as DdsDuration, QosPolicies, QosPolicyBuilder};
+use ros2_client::rustdds::DomainParticipantBuilder;
 use ros2_client::{
-    AService, Context, Message, MessageTypeName, Name, Node, NodeName, NodeOptions, ServiceMapping,
-    ServiceTypeName,
+    AService, Context, ContextOptions, Message, MessageTypeName, Name, Node, NodeName, NodeOptions,
+    ServiceMapping, ServiceTypeName,
 };
 use serde::de::DeserializeOwned;
+use std::net::IpAddr;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -52,13 +54,31 @@ pub struct Ros2Client {
 }
 
 impl Ros2Client {
-    /// Join the DDS graph. Domain id comes from `ROS_DOMAIN_ID` (default 0),
-    /// matching the pipeline. Spawns the node spinner (required for the
-    /// reliability / durability handshakes and to drain node events) on a
-    /// background thread, then blocks briefly to let discovery settle.
-    pub fn new() -> Result<Self, RosError> {
-        let context =
-            Context::new().map_err(|e| RosError::Other(format!("DDS context init: {e:?}")))?;
+    /// Join the DDS graph on `domain` (the pipeline uses 0). If `iface` is
+    /// given, DDS is bound to ONLY that local interface — the direct-link
+    /// Ethernet IP — so discovery multicast + data go over the cable to the DV
+    /// PC instead of WiFi (RustDDS has no unicast-peer knob, so pinning the
+    /// interface is how a point-to-point link is made to work). Spawns the node
+    /// spinner (required for the reliability / durability handshakes and to
+    /// drain node events) on a background thread, then blocks briefly to let
+    /// discovery settle.
+    pub fn new(domain: u16, iface: Option<IpAddr>) -> Result<Self, RosError> {
+        let context = match iface {
+            Some(ip) => {
+                let dp = DomainParticipantBuilder::new(domain)
+                    .with_only_networks([ip])
+                    .build()
+                    .map_err(|e| {
+                        RosError::Other(format!(
+                            "DDS participant (domain {domain}, bound to {ip}): {e:?}"
+                        ))
+                    })?;
+                Context::from_domain_participant(dp)
+                    .map_err(|e| RosError::Other(format!("DDS context: {e:?}")))?
+            }
+            None => Context::with_options(ContextOptions::new().domain_id(domain))
+                .map_err(|e| RosError::Other(format!("DDS context (domain {domain}): {e:?}")))?,
+        };
         let mut node = context
             .new_node(
                 NodeName::new("/mingoros", "mingoros")

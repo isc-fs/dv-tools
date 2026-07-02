@@ -36,10 +36,43 @@ env:
   NPCAP_SDK_VERSION: '1.13'
 
 jobs:
+  # ---- Version gate ------------------------------------------
+  # Every version-of-truth file must agree with the pushed tag. Catches the
+  # "tagged mingoros-v0.2.0 but Cargo.toml still says 0.1.0" mistake before any
+  # artefact is produced. Skipped on manual dispatch (nothing to compare).
+  verify-version:
+    name: verify tag matches source versions
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare versions across all files
+        run: |
+          set -eu
+          TAG_VERSION="${GITHUB_REF_NAME#mingoros-v}"
+          CORE=$(awk -F'"' '/^version/ {print $2; exit}' mingoros/crates/mingoros-core/Cargo.toml)
+          CLI=$(awk -F'"' '/^version/ {print $2; exit}' mingoros/crates/mingoros-cli/Cargo.toml)
+          STUDIO=$(awk -F'"' '/^version/ {print $2; exit}' mingoros/apps/mingoros-studio/src-tauri/Cargo.toml)
+          PKG=$(node -p "require('./mingoros/apps/mingoros-studio/package.json').version")
+          TAURI=$(node -p "require('./mingoros/apps/mingoros-studio/src-tauri/tauri.conf.json').version")
+          mism=""
+          [ "$TAG_VERSION" = "$CORE" ]   || mism="$mism mingoros-core=$CORE"
+          [ "$TAG_VERSION" = "$CLI" ]    || mism="$mism mingoros-cli=$CLI"
+          [ "$TAG_VERSION" = "$STUDIO" ] || mism="$mism studio-cargo=$STUDIO"
+          [ "$TAG_VERSION" = "$PKG" ]    || mism="$mism package.json=$PKG"
+          [ "$TAG_VERSION" = "$TAURI" ]  || mism="$mism tauri.conf=$TAURI"
+          if [ -n "$mism" ]; then
+            echo "::error::tag $GITHUB_REF_NAME implies version $TAG_VERSION, but source files disagree:$mism"
+            echo "::error::Bump all five to $TAG_VERSION and retag (or delete the tag and re-cut)."
+            exit 1
+          fi
+          echo "✓ all five source files agree on version $TAG_VERSION"
+
   # ---- Release page (created once, before builds attach) ------
   create-release:
     name: create GitHub Release
-    if: github.ref_type == 'tag'
+    needs: verify-version
+    if: github.ref_type == 'tag' && needs.verify-version.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -61,9 +94,10 @@ jobs:
             Connect the laptop to the car PC over wired Ethernet (same subnet); the app auto-joins ROS domain 0.
 
             ### CLI (`mingoros`)
-            Pre-built binaries below (Linux x86_64 / aarch64, macOS aarch64 / x86_64, Windows x86_64), or:
+            Pre-built binaries below (Linux x86_64 / aarch64, macOS aarch64 / x86_64, Windows x86_64), or build from source:
             ```bash
-            cargo install --git https://github.com/isc-fs/dv-tools.git --tag ${{ github.ref_name }} mingoros-cli
+            git clone --branch ${{ github.ref_name }} https://github.com/isc-fs/dv-tools
+            cargo install --path dv-tools/mingoros/crates/mingoros-cli --features ros2
             ```
             ---
             **Full commit log**: https://github.com/isc-fs/dv-tools/commits/${{ github.ref_name }}

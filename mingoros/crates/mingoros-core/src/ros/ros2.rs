@@ -1,7 +1,7 @@
 //! The `ros2` transport backend — pure-Rust DDS via `ros2-client` / RustDDS.
 //!
 //! Talks RTPS/DDS over UDP and interoperates with the pipeline's default
-//! `rmw_fastrtps`. No ROS install required. This is the transport MingoROS
+//! `rmw_fastrtps`. No ROS install required. This is the transport ISC MingoROS
 //! actually uses inside the DV pipeline (Linux/Pi); on the IFSSIM bench it
 //! runs in a Linux container joined to the pipeline's DDS domain.
 //!

@@ -84,7 +84,7 @@
 
 <header class="topbar">
     <div class="brand">
-        <span class="mark">MINGO<em>ROS</em></span>
+        <span class="mark"><span class="isc">ISC</span> MINGO<em>ROS</em></span>
         <span class="sub">Go / No-Go board</span>
     </div>
     <div class="grow"></div>

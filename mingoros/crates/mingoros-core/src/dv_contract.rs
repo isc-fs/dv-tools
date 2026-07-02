@@ -7,7 +7,7 @@
 //! `sim_supervisor` emulating it in sim) exchange ONLY standard ROS 2
 //! interface types, so nothing here needs custom messages. The byte values
 //! below are mirrored in the uDV firmware (C) and in the pipeline (Python) —
-//! this module keeps MingoROS in lockstep with both. The `#[cfg(test)]`
+//! this module keeps ISC MingoROS in lockstep with both. The `#[cfg(test)]`
 //! parity tests at the bottom pin every byte against the Python source so
 //! drift is caught at build time.
 
@@ -371,7 +371,7 @@ pub const TOPIC_DEBUG: &str = "/debug"; // std_msgs/String (RELIABLE)
 // `/assi/state` + `/ami/mission` BEST_EFFORT, but mission_control_node.py
 // subscribes them with `_LATCHED_QOS` (RELIABLE + TRANSIENT_LOCAL). A RELIABLE
 // reader does NOT match a BEST_EFFORT writer in DDS → SILENT NO-DATA on the
-// car. The firmware comment explicitly warns against this. MingoROS subscribes
+// car. The firmware comment explicitly warns against this. ISC MingoROS subscribes
 // BEST_EFFORT so it CAN observe the uDV — exactly the tool for flagging this.
 
 // Sim operator panel (sim-only).
@@ -380,13 +380,13 @@ pub const TOPIC_SIM_INTENT: &str = "/sim/intent";
 pub const TOPIC_SIM_ESTOP: &str = "/sim/estop";
 
 // Autonomy motion outputs (decoded for completeness; perception/cones are
-// out of scope — MingoROS is a stopped-car safety/state tool).
+// out of scope — ISC MingoROS is a stopped-car safety/state tool).
 pub const TOPIC_SLAM_POSE: &str = "/slam/pose"; // nav_msgs/Odometry
 pub const TOPIC_ODOM: &str = "/odom"; // nav_msgs/Odometry
 pub const TOPIC_PATH: &str = "/Path"; // nav_msgs/Path
 
 // ---------------------------------------------------------------------------
-// IFSSIM / sim-pipeline surface — the MingoROS ros2 test bed.
+// IFSSIM / sim-pipeline surface — the ISC MingoROS ros2 test bed.
 //
 // IFSSIM vendors an OLDER pipeline than the uDV stock interface above: it has
 // NO /dv/status, /assi/state, /ami/mission, /force_ebs. These are what the
@@ -413,7 +413,7 @@ pub const MIN_HEARTBEAT_HZ: f64 = 2.0;
 pub const STALENESS_WATCHDOG_S: f64 = 1.5;
 
 // ---------------------------------------------------------------------------
-// QoS — the load-bearing part. Mismatch here is SILENT no-data, so MingoROS's
+// QoS — the load-bearing part. Mismatch here is SILENT no-data, so ISC MingoROS's
 // ROS transport MUST honour these when it subscribes. Values pinned against
 // the pipeline node sources (see the QoS-validation spike, ROADMAP feat/2).
 // ---------------------------------------------------------------------------
@@ -530,7 +530,7 @@ impl TopicSpec {
     }
 }
 
-/// The catalogue of DV topics MingoROS knows about a priori.
+/// The catalogue of DV topics ISC MingoROS knows about a priori.
 pub const KNOWN_TOPICS: &[TopicSpec] = &[
     TopicSpec {
         name: TOPIC_ASSI_STATE,
@@ -674,7 +674,7 @@ mod tests {
     #[test]
     fn udv_publishes_best_effort_state_topics() {
         // uDV ros_task.c uses rclc_publisher_init_best_effort for these.
-        // MingoROS must subscribe BEST_EFFORT to see them (a reliable reader
+        // ISC MingoROS must subscribe BEST_EFFORT to see them (a reliable reader
         // won't match) — this is the feat/7 mission_control mismatch.
         for t in [TOPIC_ASSI_STATE, TOPIC_AS_STATE, TOPIC_AMI_MISSION] {
             assert_eq!(

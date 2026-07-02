@@ -1,4 +1,4 @@
-# MingoROS — Cargo workspace.
+# ISC MingoROS — Cargo workspace.
 #
 # Layout mirrors isc-fs/can-flasher (MingoCAN): a shared core library, a CLI,
 # and a Tauri desktop app (mingoros-studio) that all link `mingoros-core`.

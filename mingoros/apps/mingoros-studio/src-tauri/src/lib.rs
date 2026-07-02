@@ -1,4 +1,4 @@
-//! MingoROS — Tauri command surface + app body.
+//! ISC MingoROS — Tauri command surface + app body.
 //!
 //! `main.rs` is the binary entry point; the actual app body lives here (mirrors
 //! MingoCAN's can-studio) so the window setup + commands are one module and a
@@ -180,5 +180,5 @@ pub fn run() {
             get_state, get_meta, connect, force_ebs
         ])
         .run(tauri::generate_context!())
-        .expect("error while running MingoROS");
+        .expect("error while running ISC MingoROS");
 }

@@ -1,4 +1,4 @@
-//! MingoROS Studio — Tauri 2 entry point.
+//! ISC MingoROS — Tauri 2 entry point.
 //!
 //! Thin bootstrap: set up logging, then hand off to `mingoros_studio::run()`
 //! (the app body lives in `lib.rs`, mirroring MingoCAN's can-studio).

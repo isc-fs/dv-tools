@@ -111,5 +111,5 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![get_state, get_meta, connect])
         .run(tauri::generate_context!())
-        .expect("error while running MingoROS Studio");
+        .expect("error while running MingoROS");
 }

@@ -1,5 +1,23 @@
 # Changelog
 
+## mingoros-v0.1.1
+
+First follow-up to the initial release — no breaking changes.
+
+- **Renamed to "ISC MingoROS"** across the app, CLI, docs, and window title
+  (technical crate/dir slugs stay lowercase `mingoros-*`).
+- **Network-interface dropdown** in the connection bar: pick the local interface
+  for the direct-cable DV PC link from a live list instead of typing its IP
+  (`mingoros ifaces` on the CLI). Direct-cable recipe in `docs/CONNECT.md`.
+- **AS-state readout mirrors the car's ASSI light** — AS_READY solid yellow,
+  AS_DRIVING flashing yellow, AS_FINISHED solid blue, AS_EMERGENCY flashing
+  blue, AS_OFF grey — so the board reads the same as the light on the car.
+- **Auto-update on launch** (`tauri-plugin-updater`): the app checks the shared
+  **iskApps** channel for a newer signed build and offers *Install & restart*
+  (download → verify minisign signature → relaunch). Release CI signs the
+  updater artifacts and mirrors installers + `latest.json` to `isc-fs/iskapps`.
+  Setup in `docs/UPDATES.md`.
+
 ## mingoros-v0.1.0 — first release
 
 The first release of **ISC MingoROS** — the ROS 2 topic debugger for the IFS08

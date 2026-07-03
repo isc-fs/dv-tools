@@ -1,7 +1,7 @@
 {
   "name": "mingoros-studio",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "ISC MingoROS — Tauri desktop dashboard for the DV state machine + safety systems.",
   "type": "module",
   "scripts": {

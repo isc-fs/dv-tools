@@ -1,7 +1,8 @@
 // Signed auto-update, the Tauri-native equivalent of WarioCharger's flow: on
-// launch the app checks the iskApps `latest.json` (configured in tauri.conf's
-// `plugins.updater.endpoints`), and on confirm downloads + verifies the
-// minisign signature + installs the bundle, then relaunches.
+// launch the app checks the `latest.json` attached to the newest dv-tools
+// release (configured in tauri.conf's `plugins.updater.endpoints`), and on
+// confirm downloads + verifies the minisign signature + installs the bundle,
+// then relaunches.
 //
 // Everything here is a no-op outside the bundled Tauri app (the browser demo),
 // so importing it standalone is safe.

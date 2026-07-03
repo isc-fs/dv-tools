@@ -11,7 +11,13 @@
 
 import { invoke } from '@tauri-apps/api/core';
 
-import type { EbsResult, Meta, StateResponse, TopicSnapshot } from './types';
+import type {
+    EbsResult,
+    Meta,
+    NetInterface,
+    StateResponse,
+    TopicSnapshot,
+} from './types';
 
 /**
  * True only inside the bundled Tauri webview. We detect the *absence*
@@ -116,6 +122,22 @@ export function forceEbs(engage: boolean): Promise<EbsResult> {
         });
     }
     return invoke<EbsResult>('force_ebs', { engage });
+}
+
+/**
+ * List the host's network interfaces (for the DDS interface picker — choose the
+ * direct-link Ethernet instead of typing its IP). The browser demo returns a
+ * couple of plausible entries so the dropdown is populated standalone.
+ */
+export function listInterfaces(): Promise<NetInterface[]> {
+    if (IN_BROWSER) {
+        return Promise.resolve([
+            { name: 'en7', ip: '10.42.0.2', loopback: false },
+            { name: 'en0', ip: '192.168.1.50', loopback: false },
+            { name: 'lo0', ip: '127.0.0.1', loopback: true },
+        ]);
+    }
+    return invoke<NetInterface[]>('list_interfaces');
 }
 
 /** Whether the Connect control is wired to a real backend. */

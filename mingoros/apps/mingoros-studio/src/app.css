@@ -1166,10 +1166,24 @@ tr.stale .tag {
     width: 46px;
     text-align: center;
 }
-.conn .iface-in {
-    width: 116px;
+.conn .iface-sel {
+    max-width: 210px;
+    background: var(--panel);
+    border: 1px solid var(--line-2);
+    color: var(--ink);
+    border-radius: 6px;
+    padding: 5px 8px;
     font-family: var(--mono);
     font-size: 12px;
+    cursor: pointer;
+}
+.conn .iface-sel:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+.conn .iface-sel:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
 }
 .conn-err {
     display: inline-flex;

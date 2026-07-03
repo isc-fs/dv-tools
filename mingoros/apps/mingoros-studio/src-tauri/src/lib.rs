@@ -127,6 +127,13 @@ fn get_meta(state: tauri::State<Shared>) -> serde_json::Value {
     })
 }
 
+/// The host's network interfaces — for the app's interface picker (pick the
+/// direct-link Ethernet to bind DDS to instead of typing its IP).
+#[tauri::command]
+fn list_interfaces() -> Vec<mingoros_core::net::NetInterface> {
+    mingoros_core::net::list_interfaces()
+}
+
 #[tauri::command]
 fn connect(
     domain: u16,
@@ -177,7 +184,11 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            get_state, get_meta, connect, force_ebs
+            get_state,
+            get_meta,
+            connect,
+            force_ebs,
+            list_interfaces
         ])
         .run(tauri::generate_context!())
         .expect("error while running ISC MingoROS");

@@ -118,6 +118,10 @@ enum Cmd {
     /// Detect the uDV on the system's USB/serial ports (ranked candidates).
     Udv,
 
+    /// List this host's network interfaces + IPs — pick the direct-link
+    /// Ethernet's IP to pass as `--iface` when connecting to the DV PC.
+    Ifaces,
+
     /// Bridge a uDV onto the ROS graph via `micro_ros_agent` (so `--backend
     /// ros2` can see it). Auto-detects the uDV unless --dev is given.
     Agent {
@@ -192,6 +196,7 @@ fn main() -> Result<()> {
         } => cmd_publish(conn, &topic, &value, force),
         Cmd::State { duration } => cmd_state(conn, cli.json, duration),
         Cmd::Udv => cmd_udv(cli.json),
+        Cmd::Ifaces => cmd_ifaces(cli.json),
         Cmd::Agent { dev, baud } => cmd_agent(dev, baud),
         Cmd::Bag { action } => cmd_bag(action),
         Cmd::ForceEbs { state, force } => cmd_force_ebs(conn, state, force),
@@ -447,6 +452,37 @@ fn cmd_udv(json: bool) -> Result<()> {
         );
     }
     println!("\nBridge it with:  mingoros agent --dev {}", found[0].port);
+    Ok(())
+}
+
+fn cmd_ifaces(json: bool) -> Result<()> {
+    let ifs = mingoros_core::net::list_interfaces();
+    if json {
+        println!("{}", serde_json::to_string_pretty(&ifs)?);
+        return Ok(());
+    }
+    if ifs.is_empty() {
+        println!("No network interfaces found.");
+        return Ok(());
+    }
+    println!("{:<18} {:<18} KIND", "INTERFACE", "IPv4");
+    for i in &ifs {
+        println!(
+            "{:<18} {:<18} {}",
+            i.name,
+            i.ip,
+            if i.loopback { "loopback" } else { "" }
+        );
+    }
+    let hint = ifs
+        .iter()
+        .find(|i| !i.loopback)
+        .map(|i| i.ip.as_str())
+        .unwrap_or("10.42.0.2");
+    println!(
+        "\nBind DDS to your direct-link Ethernet, e.g.:\n  \
+         mingoros topics --backend ros2 --domain 0 --iface {hint}"
+    );
     Ok(())
 }
 

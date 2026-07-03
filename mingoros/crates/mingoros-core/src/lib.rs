@@ -19,6 +19,7 @@ pub mod dashboard;
 pub mod dv_contract;
 #[cfg(feature = "ros2")]
 pub mod msgs;
+pub mod net;
 pub mod ros;
 
 /// Crate version (`CARGO_PKG_VERSION`).

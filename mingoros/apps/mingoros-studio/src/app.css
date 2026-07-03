@@ -1372,3 +1372,74 @@ tr.stale .tag {
     border-color: var(--go);
     background: var(--go-bg);
 }
+
+/* ---- ASSI: the AS-state readout mirrors the car's Autonomous System Status
+   Indicator light — AS_READY yellow, AS_DRIVING yellow-flashing, AS_FINISHED
+   blue solid, AS_EMERGENCY blue-flashing, AS_OFF off. Overrides the verdict
+   theme for the AS panel only; the bench-verdict stamp keeps its go/no-go
+   colour. Selectors are `.verdict .as.assi-*` so they beat `.verdict.<state>
+   .as .rail/.word` at equal specificity by source order. ---- */
+.word-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+.assi-led {
+    flex: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #454e5c;
+    transition: background 0.3s, box-shadow 0.3s;
+}
+/* AS_READY / AS_DRIVING → yellow */
+.verdict .as.assi-yellow .assi-led {
+    background: #f2c811;
+    box-shadow: 0 0 18px 0 rgba(242, 200, 17, 0.65);
+}
+.verdict .as.assi-yellow .word {
+    color: #f2c811;
+}
+.verdict .as.assi-yellow .rail {
+    background: #f2c811;
+    box-shadow: 0 0 20px -4px #f2c811;
+}
+/* AS_FINISHED / AS_EMERGENCY → blue */
+.verdict .as.assi-blue .assi-led {
+    background: #2d7ff9;
+    box-shadow: 0 0 18px 0 rgba(45, 127, 249, 0.65);
+}
+.verdict .as.assi-blue .word {
+    color: #6fb0ff;
+}
+.verdict .as.assi-blue .rail {
+    background: #2d7ff9;
+    box-shadow: 0 0 20px -4px #2d7ff9;
+}
+/* AS_OFF / no data → off */
+.verdict .as.assi-grey .assi-led {
+    background: #454e5c;
+    box-shadow: none;
+}
+.verdict .as.assi-grey .word {
+    color: var(--ink-dim);
+}
+.verdict .as.assi-grey .rail {
+    background: var(--line-2);
+    box-shadow: none;
+}
+/* flashing states (AS_DRIVING / AS_EMERGENCY) */
+.verdict .as.assi-blink .assi-led,
+.verdict .as.assi-blink .rail {
+    animation: assiflash 0.66s steps(1, end) infinite;
+}
+@keyframes assiflash {
+    0%,
+    49% {
+        opacity: 1;
+    }
+    50%,
+    100% {
+        opacity: 0.15;
+    }
+}

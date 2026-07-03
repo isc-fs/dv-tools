@@ -96,6 +96,28 @@ export function displayName(name: string): string {
     return DISPLAY[name] ?? name;
 }
 
+/** ASSI colour + flashing, matching the car's Autonomous System Status
+ *  Indicator light. */
+export interface AssiLook {
+    color: 'yellow' | 'blue' | 'grey';
+    blink: boolean;
+}
+
+/**
+ * Map the `/assi/state` word to the car's ASSI light (FS-Rules Autonomous
+ * System Status Indicator), so the app shows the SAME thing as the car:
+ * AS_READY = yellow, AS_DRIVING = yellow flashing, AS_FINISHED = blue solid,
+ * AS_EMERGENCY = blue flashing, AS_OFF (or unknown) = off/grey.
+ */
+export function assiLook(asWord: string | null | undefined): AssiLook {
+    const w = (asWord || '').toUpperCase();
+    if (w.includes('DRIVING')) return { color: 'yellow', blink: true };
+    if (w.includes('READY')) return { color: 'yellow', blink: false };
+    if (w.includes('EMERGENCY')) return { color: 'blue', blink: true };
+    if (w.includes('FINISHED')) return { color: 'blue', blink: false };
+    return { color: 'grey', blink: false };
+}
+
 /** Format a millisecond age as "N.Ns" (null -> "0.0s"). */
 export function fmtAge(ms: number | null | undefined): string {
     return (ms == null ? 0 : ms / 1000).toFixed(1) + 's';

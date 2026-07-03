@@ -171,6 +171,8 @@ fn force_ebs(engage: bool, client: tauri::State<ClientCell>) -> Result<serde_jso
 pub fn run() {
     let client_cell: ClientCell = Mutex::new(None);
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .manage(Mutex::new(AppState::default()))
         .manage(client_cell)
         .setup(|app| {

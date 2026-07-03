@@ -5,8 +5,9 @@
     shows "demo · live". A connect error surfaces as a chip in the bar.
 -->
 <script lang="ts">
-    import type { Meta } from '../types';
-    import { isTauri } from '../api';
+    import { onMount } from 'svelte';
+    import type { Meta, NetInterface } from '../types';
+    import { isTauri, listInterfaces } from '../api';
     import EbsControl from './EbsControl.svelte';
 
     interface Props {
@@ -30,6 +31,18 @@
     let invalid = $state<boolean>(false);
     let busy = $state<boolean>(false);
     let touched = $state<boolean>(false);
+    let interfaces = $state<NetInterface[]>([]);
+
+    async function refreshIfaces(): Promise<void> {
+        try {
+            interfaces = await listInterfaces();
+        } catch {
+            interfaces = [];
+        }
+    }
+    onMount(() => {
+        void refreshIfaces();
+    });
 
     $effect(() => {
         // Reseed from the backend only while the field is pristine, so we
@@ -84,7 +97,7 @@
 
 <header class="topbar">
     <div class="brand">
-        <span class="mark">MINGO<em>ROS</em></span>
+        <span class="mark"><span class="isc">ISC</span> MINGO<em>ROS</em></span>
         <span class="sub">Go / No-Go board</span>
     </div>
     <div class="grow"></div>
@@ -106,17 +119,23 @@
                 onkeydown={onKeydown}
             />
             <label for="iface">iface</label>
-            <input
+            <select
                 id="iface"
-                class="iface-in"
-                placeholder="auto"
-                aria-label="local interface IP to bind DDS to"
-                title="Bind DDS to your direct-link Ethernet IP so discovery goes over the cable (blank = all interfaces)"
+                class="iface-sel"
+                aria-label="local interface to bind DDS to"
+                title="Bind DDS to your direct-link Ethernet so discovery goes over the cable (auto = all interfaces)"
                 disabled={busy}
                 bind:value={ifaceStr}
-                oninput={onInput}
-                onkeydown={onKeydown}
-            />
+                onchange={onInput}
+                onfocus={() => void refreshIfaces()}
+            >
+                <option value="">auto (all interfaces)</option>
+                {#each interfaces as i (i.name + i.ip)}
+                    <option value={i.ip}
+                        >{i.name} · {i.ip}{i.loopback ? ' (lo)' : ''}</option
+                    >
+                {/each}
+            </select>
             <button type="button" disabled={busy} onclick={() => void submit()}>
                 {busy ? 'connecting…' : 'Connect'}
             </button>

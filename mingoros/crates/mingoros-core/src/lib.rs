@@ -1,7 +1,7 @@
 //! # mingoros-core
 //!
-//! Core library for **MingoROS** — the DV-stack ROS2 topic debugger. MingoCAN
-//! (`isc-fs/can-flasher`) is to CAN frames what MingoROS is to ROS topics:
+//! Core library for **ISC MingoROS** — the DV-stack ROS2 topic debugger. MingoCAN
+//! (`isc-fs/can-flasher`) is to CAN frames what ISC MingoROS is to ROS topics:
 //! list / echo / hz / publish, plus a live safety/state dashboard for
 //! stopped-car commissioning.
 //!
@@ -19,6 +19,7 @@ pub mod dashboard;
 pub mod dv_contract;
 #[cfg(feature = "ros2")]
 pub mod msgs;
+pub mod net;
 pub mod ros;
 
 /// Crate version (`CARGO_PKG_VERSION`).

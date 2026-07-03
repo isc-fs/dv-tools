@@ -1,4 +1,4 @@
-/* MingoROS Studio — Go / No-Go board global design system.
+/* ISC MingoROS — Go / No-Go board global design system.
    Ported byte-faithfully from the original self-contained dashboard.
    Cool steel neutrals biased toward the blue accent — a pit-wall
    instrument ground. The accent is interactive/brand ONLY; semantic
@@ -129,6 +129,10 @@ main {
 .brand .mark em {
     font-style: normal;
     color: var(--accent);
+}
+.brand .mark .isc {
+    color: var(--ink-faint);
+    font-weight: 700;
 }
 .brand .sub {
     font-size: 10.5px;
@@ -1131,6 +1135,69 @@ tr.stale .tag {
     }
 }
 
+/* ---- auto-update banner ---- */
+.update-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 20px;
+    font-size: 12.5px;
+    color: var(--ink);
+    background: var(--panel-2);
+    border-bottom: 1px solid var(--accent-dim);
+    box-shadow: inset 0 2px 0 var(--accent);
+}
+.update-bar.err {
+    border-bottom-color: var(--no-line);
+    box-shadow: inset 0 2px 0 var(--no);
+    color: var(--no-ink);
+}
+.update-bar b {
+    color: var(--accent);
+}
+.update-bar.err b {
+    color: var(--no-ink);
+}
+.up-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex: none;
+    background: var(--accent);
+    box-shadow: 0 0 10px var(--accent);
+}
+.up-dot.busy {
+    animation: assiflash 0.8s steps(1, end) infinite;
+}
+.up-actions {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+}
+.update-bar button {
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--line-2);
+}
+.up-ghost {
+    background: transparent;
+    color: var(--ink-dim);
+}
+.up-ghost:hover {
+    color: var(--ink);
+}
+.up-go {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #04121f;
+}
+.up-go:hover {
+    box-shadow: 0 0 14px -3px var(--accent);
+}
+
 /* ---- persistent safety strip (car must be on stands) ---- */
 .safety-strip {
     position: sticky;
@@ -1162,10 +1229,24 @@ tr.stale .tag {
     width: 46px;
     text-align: center;
 }
-.conn .iface-in {
-    width: 116px;
+.conn .iface-sel {
+    max-width: 210px;
+    background: var(--panel);
+    border: 1px solid var(--line-2);
+    color: var(--ink);
+    border-radius: 6px;
+    padding: 5px 8px;
     font-family: var(--mono);
     font-size: 12px;
+    cursor: pointer;
+}
+.conn .iface-sel:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+.conn .iface-sel:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
 }
 .conn-err {
     display: inline-flex;
@@ -1353,4 +1434,75 @@ tr.stale .tag {
 .btn-release:hover:not(:disabled) {
     border-color: var(--go);
     background: var(--go-bg);
+}
+
+/* ---- ASSI: the AS-state readout mirrors the car's Autonomous System Status
+   Indicator light — AS_READY yellow, AS_DRIVING yellow-flashing, AS_FINISHED
+   blue solid, AS_EMERGENCY blue-flashing, AS_OFF off. Overrides the verdict
+   theme for the AS panel only; the bench-verdict stamp keeps its go/no-go
+   colour. Selectors are `.verdict .as.assi-*` so they beat `.verdict.<state>
+   .as .rail/.word` at equal specificity by source order. ---- */
+.word-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+.assi-led {
+    flex: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #454e5c;
+    transition: background 0.3s, box-shadow 0.3s;
+}
+/* AS_READY / AS_DRIVING → yellow */
+.verdict .as.assi-yellow .assi-led {
+    background: #f2c811;
+    box-shadow: 0 0 18px 0 rgba(242, 200, 17, 0.65);
+}
+.verdict .as.assi-yellow .word {
+    color: #f2c811;
+}
+.verdict .as.assi-yellow .rail {
+    background: #f2c811;
+    box-shadow: 0 0 20px -4px #f2c811;
+}
+/* AS_FINISHED / AS_EMERGENCY → blue */
+.verdict .as.assi-blue .assi-led {
+    background: #2d7ff9;
+    box-shadow: 0 0 18px 0 rgba(45, 127, 249, 0.65);
+}
+.verdict .as.assi-blue .word {
+    color: #6fb0ff;
+}
+.verdict .as.assi-blue .rail {
+    background: #2d7ff9;
+    box-shadow: 0 0 20px -4px #2d7ff9;
+}
+/* AS_OFF / no data → off */
+.verdict .as.assi-grey .assi-led {
+    background: #454e5c;
+    box-shadow: none;
+}
+.verdict .as.assi-grey .word {
+    color: var(--ink-dim);
+}
+.verdict .as.assi-grey .rail {
+    background: var(--line-2);
+    box-shadow: none;
+}
+/* flashing states (AS_DRIVING / AS_EMERGENCY) */
+.verdict .as.assi-blink .assi-led,
+.verdict .as.assi-blink .rail {
+    animation: assiflash 0.66s steps(1, end) infinite;
+}
+@keyframes assiflash {
+    0%,
+    49% {
+        opacity: 1;
+    }
+    50%,
+    100% {
+        opacity: 0.15;
+    }
 }

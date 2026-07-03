@@ -1,12 +1,32 @@
 # Changelog
 
+## mingoros-v0.1.1
+
+First follow-up to the initial release — no breaking changes.
+
+- **Renamed to "ISC MingoROS"** across the app, CLI, docs, and window title
+  (technical crate/dir slugs stay lowercase `mingoros-*`).
+- **Network-interface dropdown** in the connection bar: pick the local interface
+  for the direct-cable DV PC link from a live list instead of typing its IP
+  (`mingoros ifaces` on the CLI). Direct-cable recipe in `docs/CONNECT.md`.
+- **AS-state readout mirrors the car's ASSI light** — AS_READY solid yellow,
+  AS_DRIVING flashing yellow, AS_FINISHED solid blue, AS_EMERGENCY flashing
+  blue, AS_OFF grey — so the board reads the same as the light on the car.
+- **Auto-update on launch** (`tauri-plugin-updater`): the app checks the newest
+  **dv-tools GitHub Release** for a newer signed build and offers *Install &
+  restart* (download → verify minisign signature → relaunch). Release CI signs
+  the updater artifacts and attaches a combined `latest.json` (all platforms) to
+  the same release — no cross-repo token needed. Setup in `docs/UPDATES.md`.
+- **Windows now ships a single NSIS `-setup.exe`** (dropped the `.msi`) so the
+  installed format matches what the auto-updater serves.
+
 ## mingoros-v0.1.0 — first release
 
-The first release of **MingoROS** — the ROS 2 topic debugger for the IFS08
+The first release of **ISC MingoROS** — the ROS 2 topic debugger for the IFS08
 Driverless stack (MingoCAN, but for ROS topics). No ROS install needed on the
 laptop (pure-Rust RustDDS).
 
-> ⚠️ **Safety:** MingoROS can command actuation (EBS, control/mission topics).
+> ⚠️ **Safety:** ISC MingoROS can command actuation (EBS, control/mission topics).
 > The car must be **on stands, wheels off the ground, at all times** while it is
 > in use — a persistent banner in the app and notices in the docs enforce this.
 

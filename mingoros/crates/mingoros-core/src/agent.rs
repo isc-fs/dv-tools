@@ -1,7 +1,7 @@
 //! uDV link management — detect the uDV over USB and drive `micro_ros_agent`.
 //!
 //! The uDV is a micro-ROS (XRCE-DDS) endpoint on USB-CDC; it only appears on
-//! the ROS graph once a `micro_ros_agent` bridges its serial link. MingoROS
+//! the ROS graph once a `micro_ros_agent` bridges its serial link. ISC MingoROS
 //! detects the board and owns that agent process, so `--backend ros2` can then
 //! see the uDV's topics.
 //!

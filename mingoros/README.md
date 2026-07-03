@@ -1,8 +1,8 @@
-# MingoROS
+# ISC MingoROS
 
 **ROS 2 topic debugger for the IFS08 Driverless stack.** MingoCAN
 ([`isc-fs/can-flasher`](https://github.com/isc-fs/can-flasher)) is to CAN frames
-what MingoROS is to ROS topics — a native **Go / No-Go safety board** for
+what ISC MingoROS is to ROS topics — a native **Go / No-Go safety board** for
 commissioning a stopped car, plus a scriptable CLI (`topics` / `echo` / `hz` /
 `pub` / `state` / `force-ebs` / …). One Rust tool instead of the scattered
 `ros2 topic …` / `rqt` / Foxglove dance, and **no ROS install needed** on the
@@ -12,9 +12,9 @@ Targets the [uDV](https://github.com/isc-fs/IFS08-DV-uDV) micro-ROS gateway and
 the [DV pipeline](https://github.com/isc-fs/IFS08-DV_PIPELINE) ROS 2 graph.
 
 > ### ⚠️ Safety — car on stands, wheels off the ground, **always**
-> MingoROS can command **actuation** — Force EBS, and `pub` to control / mission
+> ISC MingoROS can command **actuation** — Force EBS, and `pub` to control / mission
 > topics (a throttle command **will move the car**). A stray or mistaken command
-> must never be able to drive the wheels. Only ever use MingoROS on a car that is
+> must never be able to drive the wheels. Only ever use ISC MingoROS on a car that is
 > **jacked up and freewheeling**, never with the wheels able to touch down.
 
 ## Install
@@ -24,7 +24,7 @@ Download the latest from
 
 | | macOS | Linux | Windows |
 |---|---|---|---|
-| **MingoROS** desktop app | `.dmg` (universal) | `.deb` / `.AppImage` / `.rpm` | `.msi` / `-setup.exe` |
+| **ISC MingoROS** desktop app | `.dmg` (universal) | `.deb` / `.AppImage` / `.rpm` | `-setup.exe` (NSIS) |
 | **`mingoros`** CLI | binary (aarch64/x86_64) | binary (x86_64/aarch64) | `.exe` |
 
 macOS `.dmg` is ad-hoc signed — first launch needs **right-click → Open →
@@ -36,7 +36,7 @@ To connect the laptop to the car's DV PC over a direct Ethernet cable, follow
 
 ## The mapping
 
-| MingoCAN (CAN) | MingoROS (ROS 2) |
+| MingoCAN (CAN) | ISC MingoROS (ROS 2) |
 |---|---|
 | `adapters` — list CAN adapters | `topics` — list the graph: name, type, **QoS** |
 | `monitor` — sniff bus frames | `echo` — live-subscribe + decode any topic |
@@ -47,7 +47,7 @@ To connect the laptop to the car's DV PC over a direct Ethernet cable, follow
 
 ## The desktop app
 
-**MingoROS** (Tauri 2 + Svelte 5) is the graphical companion — a double-click
+**ISC MingoROS** (Tauri 2 + Svelte 5) is the graphical companion — a double-click
 executable like MingoCAN's `can-studio`. It joins the car's DDS graph over
 Ethernet and renders a live **Go / No-Go board**: a dominant AS-state readout, a
 `READY TO DRIVE / NOT READY / FAULT` verdict that names the blocking interlocks,
@@ -90,7 +90,7 @@ Perception/cones are out of scope.
 ## On the bench with a real uDV
 
 The uDV is a micro-ROS (XRCE-DDS) endpoint on USB-CDC — it only appears on the
-ROS graph once a `micro_ros_agent` bridges it. MingoROS drives that:
+ROS graph once a `micro_ros_agent` bridges it. ISC MingoROS drives that:
 
 ```bash
 mingoros udv                       # detect the board (ranked USB candidates)
@@ -121,7 +121,7 @@ mingoros/
 │           ├── fake.rs            #   in-process synthetic graph
 │           └── ros2.rs            #   (ros2) ros2-client/RustDDS live backend
 ├── crates/mingoros-cli/           # the `mingoros` binary (clap)
-├── apps/mingoros-studio/          # the MingoROS desktop app (Tauri 2 + Svelte 5)
+├── apps/mingoros-studio/          # the ISC MingoROS desktop app (Tauri 2 + Svelte 5)
 │   ├── src/                       #   Svelte frontend (the Go/No-Go board)
 │   └── src-tauri/                 #   Rust: mingoros-core in a window (see its README)
 └── docs/CONNECT.md                # laptop ↔ DV PC direct-cable setup
@@ -130,7 +130,7 @@ mingoros/
 - **`RosClient`** is the seam every backend implements — `fake` and `ros2`
   (ros2-client / RustDDS) behind a cargo feature. Nothing above this layer knows
   which transport it's driving.
-- **`dv_contract`** keeps MingoROS in lockstep with the firmware (C) and the
+- **`dv_contract`** keeps ISC MingoROS in lockstep with the firmware (C) and the
   pipeline (Python). Its `#[cfg(test)]` parity tests fail the build if a byte
   value drifts.
 - The **safety gate** (`pub` requires `--force` for command/actuation topics;

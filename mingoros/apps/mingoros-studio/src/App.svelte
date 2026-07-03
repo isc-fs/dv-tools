@@ -1,5 +1,5 @@
 <!--
-    MingoROS Studio — Go / No-Go board root.
+    ISC MingoROS — Go / No-Go board root.
 
     Owns the reactive board state, runs the 250 ms poll loop against
     the Tauri backend (or the baked demo when standalone), and composes
@@ -28,6 +28,7 @@
     } from './lib/model';
 
     import AppBar from './lib/components/AppBar.svelte';
+    import UpdateBanner from './lib/components/UpdateBanner.svelte';
     import StatusBanner from './lib/components/StatusBanner.svelte';
     import StateHero from './lib/components/StateHero.svelte';
     import FactCards from './lib/components/FactCards.svelte';
@@ -132,10 +133,12 @@
 
 <AppBar {meta} {live} {liveText} connect={reconnect} />
 
+<UpdateBanner />
+
 <div class="safety-strip" role="alert">
     <span class="warn-glyph" aria-hidden="true">▲</span>
     <span
-        ><b>CAR ON STANDS · WHEELS OFF THE GROUND, ALWAYS.</b> MingoROS can command
+        ><b>CAR ON STANDS · WHEELS OFF THE GROUND, ALWAYS.</b> ISC MingoROS can command
         actuation (EBS, control/mission topics) — a stray command can move the car.
         Never use it with the wheels able to touch down.</span
     >

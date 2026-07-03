@@ -1,4 +1,4 @@
-//! MingoROS CLI — the `mingoros` binary.
+//! ISC MingoROS CLI — the `mingoros` binary.
 //!
 //! ROS2 topic debugger for the IFS08 DV stack: MingoCAN, but for ROS topics.
 //! The CLI house style follows can-flasher — a `clap` derive tree, a global
@@ -20,7 +20,7 @@ use tracing_subscriber::EnvFilter;
 #[command(
     name = "mingoros",
     version,
-    about = "MingoROS — ROS2 topic debugger for the IFS08 DV stack (MingoCAN, but for ROS topics)."
+    about = "ISC MingoROS — ROS2 topic debugger for the IFS08 DV stack (MingoCAN, but for ROS topics)."
 )]
 struct Cli {
     /// ROS transport backend.
@@ -118,6 +118,10 @@ enum Cmd {
     /// Detect the uDV on the system's USB/serial ports (ranked candidates).
     Udv,
 
+    /// List this host's network interfaces + IPs — pick the direct-link
+    /// Ethernet's IP to pass as `--iface` when connecting to the DV PC.
+    Ifaces,
+
     /// Bridge a uDV onto the ROS graph via `micro_ros_agent` (so `--backend
     /// ros2` can see it). Auto-detects the uDV unless --dev is given.
     Agent {
@@ -192,6 +196,7 @@ fn main() -> Result<()> {
         } => cmd_publish(conn, &topic, &value, force),
         Cmd::State { duration } => cmd_state(conn, cli.json, duration),
         Cmd::Udv => cmd_udv(cli.json),
+        Cmd::Ifaces => cmd_ifaces(cli.json),
         Cmd::Agent { dev, baud } => cmd_agent(dev, baud),
         Cmd::Bag { action } => cmd_bag(action),
         Cmd::ForceEbs { state, force } => cmd_force_ebs(conn, state, force),
@@ -382,7 +387,7 @@ fn render_state(
         out.push_str("\x1b[H\x1b[J"); // cursor home + clear to end
     }
     out.push_str(&format!(
-        "MingoROS · DV state   backend:{backend}   (Ctrl-C to exit)\n"
+        "ISC MingoROS · DV state   backend:{backend}   (Ctrl-C to exit)\n"
     ));
     out.push_str(&"─".repeat(76));
     out.push('\n');
@@ -450,6 +455,37 @@ fn cmd_udv(json: bool) -> Result<()> {
     Ok(())
 }
 
+fn cmd_ifaces(json: bool) -> Result<()> {
+    let ifs = mingoros_core::net::list_interfaces();
+    if json {
+        println!("{}", serde_json::to_string_pretty(&ifs)?);
+        return Ok(());
+    }
+    if ifs.is_empty() {
+        println!("No network interfaces found.");
+        return Ok(());
+    }
+    println!("{:<18} {:<18} KIND", "INTERFACE", "IPv4");
+    for i in &ifs {
+        println!(
+            "{:<18} {:<18} {}",
+            i.name,
+            i.ip,
+            if i.loopback { "loopback" } else { "" }
+        );
+    }
+    let hint = ifs
+        .iter()
+        .find(|i| !i.loopback)
+        .map(|i| i.ip.as_str())
+        .unwrap_or("10.42.0.2");
+    println!(
+        "\nBind DDS to your direct-link Ethernet, e.g.:\n  \
+         mingoros topics --backend ros2 --domain 0 --iface {hint}"
+    );
+    Ok(())
+}
+
 fn cmd_agent(dev: Option<String>, baud: u32) -> Result<()> {
     use mingoros_core::agent::{detect_udv, micro_ros_agent_argv, AgentConfig, AgentTransport};
 
@@ -492,7 +528,7 @@ fn cmd_agent(dev: Option<String>, baud: u32) -> Result<()> {
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => bail!(
             "`micro_ros_agent` not found on PATH. It's a ROS 2 / micro-ROS package — install it \
-             (or run MingoROS in the container where it lives) and ensure it's on PATH."
+             (or run ISC MingoROS in the container where it lives) and ensure it's on PATH."
         ),
         Err(e) => bail!("failed to launch micro_ros_agent: {e}"),
     }
@@ -590,7 +626,7 @@ fn cmd_bag(action: BagCmd) -> Result<()> {
             Ok(())
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => bail!(
-            "`ros2` not found on PATH. Bag record/replay wraps the ROS 2 CLI — run MingoROS \
+            "`ros2` not found on PATH. Bag record/replay wraps the ROS 2 CLI — run ISC MingoROS \
              where a sourced ROS 2 lives (e.g. the pipeline container)."
         ),
         Err(e) => bail!("failed to launch ros2 bag: {e}"),

@@ -1,4 +1,4 @@
-# MingoROS roadmap
+# ISC MingoROS roadmap
 
 Phased delivery, MVP → full tool. Each phase is a `feat/*` branch → PR → `dev`.
 Derived from the scoping study of MingoCAN, WarioCharger, uDV and PIPELINE.
@@ -21,7 +21,7 @@ debugging only**; raw CAN stays MingoCAN's job.
 - [x] CLI: `topics`, `echo`, `hz`, `pub` (with the actuation safety gate);
       `bag`/`adapters`/`monitor` stubbed with roadmap pointers.
 
-> **Scope reality (car STOPPED):** MingoROS is used to commission a *stationary*
+> **Scope reality (car STOPPED):** ISC MingoROS is used to commission a *stationary*
 > car, so the priority surface is the **state machine + safety/mission signals**
 > (AS state, ASMS, TS, SDC/RES, EBS, R2D, mission, `/dv/status`). Motion topics
 > (pose, odom) are decoded for completeness; **perception/cones and LiDAR are
@@ -38,7 +38,7 @@ debugging only**; raw CAN stays MingoCAN's job.
 - [x] `dv_contract` extended with the IFSSIM/sim topic surface; `topics` /
       `echo` / `hz` work against a live pipeline (Float32 + std_msgs scalars
       decoded).
-- [x] Dockerfile — runs MingoROS in the pipeline's DDS domain (Linux/container).
+- [x] Dockerfile — runs ISC MingoROS in the pipeline's DDS domain (Linux/container).
 - [x] Corrected `dv_contract` against uDV `feat/15` + pipeline `feat/7` (right
       names/QoS; flagged the `/assi/state`+`/ami/mission` best-effort-vs-latched
       mismatch — filed IFS08-DV-PIPELINE#15). uDV state bytes decode to labels.
@@ -55,7 +55,7 @@ debugging only**; raw CAN stays MingoCAN's job.
       `describe_state_signals()` renderer and parity tests.
 
 ### Phase 3 — uDV link
-> Firmware flashing is **out of scope** — MingoROS is a debugger/bridge, not a
+> Firmware flashing is **out of scope** — ISC MingoROS is a debugger/bridge, not a
 > flasher. Flash the uDV with STM32CubeProgrammer / dfu-util as before.
 
 - [x] Robust uDV detect (`mingoros udv`): enumerate USB serial ports, rank on
@@ -73,7 +73,7 @@ debugging only**; raw CAN stays MingoCAN's job.
       wrapping the `ros2 bag` CLI (records the priority safety topics by default,
       `--all` for the whole graph). Same subprocess-manager pattern as `agent`.
 - [ ] *(optional)* Services/actions: `ActivateMode` (mode bring-up),
-      `StartBag`/`StopBag` — only if MingoROS should *drive* the pipeline.
+      `StartBag`/`StopBag` — only if ISC MingoROS should *drive* the pipeline.
 
 ### Phase 5 — Native desktop app
 > The graphical UI is a **native executable** (like MingoCAN's can-studio) — no

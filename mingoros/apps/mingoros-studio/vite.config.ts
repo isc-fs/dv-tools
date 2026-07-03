@@ -1,4 +1,4 @@
-// Vite configuration for the MingoROS Studio frontend.
+// Vite configuration for the ISC MingoROS frontend.
 //
 // Tauri 2 launches `vite` as a child process during `tauri dev` and expects the
 // dev server on port 5173. For production builds Tauri sets TAURI_* env vars

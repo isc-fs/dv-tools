@@ -1,7 +1,7 @@
 [package]
 name = "mingoros-studio"
-version = "0.1.0"
-description = "MingoROS Studio — native desktop dashboard for the DV state machine + safety systems."
+version = "0.1.1"
+description = "ISC MingoROS — native desktop dashboard for the DV state machine + safety systems."
 edition = "2021"
 rust-version = "1.95"
 license = "MIT"
@@ -21,6 +21,11 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 # Tauri 2 — the desktop application framework.
 tauri = { version = "2", features = [] }
+
+# Signed auto-update: on launch the app checks the dv-tools release `latest.json`,
+# and on confirm downloads + verifies + installs the signed bundle, then relaunches.
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
 
 # The ros2 / RustDDS transport — the app joins the car's DDS graph directly
 # over wired Ethernet. `MINGOROS_FAKE=1` swaps in the in-process fake backend

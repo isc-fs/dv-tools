@@ -1,4 +1,4 @@
-//! MingoROS — Tauri command surface + app body.
+//! ISC MingoROS — Tauri command surface + app body.
 //!
 //! `main.rs` is the binary entry point; the actual app body lives here (mirrors
 //! MingoCAN's can-studio) so the window setup + commands are one module and a
@@ -127,6 +127,13 @@ fn get_meta(state: tauri::State<Shared>) -> serde_json::Value {
     })
 }
 
+/// The host's network interfaces — for the app's interface picker (pick the
+/// direct-link Ethernet to bind DDS to instead of typing its IP).
+#[tauri::command]
+fn list_interfaces() -> Vec<mingoros_core::net::NetInterface> {
+    mingoros_core::net::list_interfaces()
+}
+
 #[tauri::command]
 fn connect(
     domain: u16,
@@ -164,6 +171,8 @@ fn force_ebs(engage: bool, client: tauri::State<ClientCell>) -> Result<serde_jso
 pub fn run() {
     let client_cell: ClientCell = Mutex::new(None);
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .manage(Mutex::new(AppState::default()))
         .manage(client_cell)
         .setup(|app| {
@@ -177,8 +186,12 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            get_state, get_meta, connect, force_ebs
+            get_state,
+            get_meta,
+            connect,
+            force_ebs,
+            list_interfaces
         ])
         .run(tauri::generate_context!())
-        .expect("error while running MingoROS");
+        .expect("error while running ISC MingoROS");
 }

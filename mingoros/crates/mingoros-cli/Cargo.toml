@@ -1,7 +1,7 @@
 [package]
 name         = "mingoros-cli"
-version      = "0.1.0"
-description  = "MingoROS CLI — ROS2 topic debugger for the IFS08 DV stack"
+version      = "0.1.1"
+description  = "ISC MingoROS CLI — ROS2 topic debugger for the IFS08 DV stack"
 edition      .workspace = true
 rust-version .workspace = true
 license      .workspace = true

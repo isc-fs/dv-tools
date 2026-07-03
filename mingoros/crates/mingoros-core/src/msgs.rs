@@ -2,7 +2,7 @@
 //! field order matches the `.msg` definitions so RustDDS's CDR (de)serializer
 //! reads them correctly off the wire.
 //!
-//! Deliberately a small subset — the state/safety/motion types MingoROS
+//! Deliberately a small subset — the state/safety/motion types ISC MingoROS
 //! decodes. (Perception/cones are out of scope.)
 
 use serde::{Deserialize, Serialize};

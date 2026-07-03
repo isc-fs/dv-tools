@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "MingoROS",
-  "version": "0.1.0",
+  "productName": "ISC MingoROS",
+  "version": "0.1.1",
   "identifier": "fs.isc.mingoros.studio",
   "build": {
     "frontendDist": "../dist",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "MingoROS",
+        "title": "ISC MingoROS",
         "width": 1200,
         "height": 860,
         "minWidth": 860,
@@ -30,13 +30,22 @@
       "csp": null
     }
   },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/isc-fs/dv-tools/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg2NTZDODYwMDA2QTFENzIKUldSeUhXb0FZTWhXaHFQSTAxWHY0S0FPbHArQUVTQzlvOFRBb3UzZ1ExVmh2cEUrMVJaNU1oYnMK"
+    }
+  },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "createUpdaterArtifacts": true,
+    "targets": ["app", "dmg", "appimage", "deb", "rpm", "nsis"],
     "category": "DeveloperTool",
     "copyright": "Copyright © 2026 ISC Racing Team — IFS08 Driverless",
     "shortDescription": "Debug the DV state machine + safety systems on a stopped car.",
-    "longDescription": "MingoROS is the desktop companion to the mingoros CLI: a native Go/No-Go board that joins the car's ROS 2 DDS graph over Ethernet and shows the autonomous state machine, EBS / RES / ASMS safety interlocks, and mission state at a glance — for bench commissioning of a stationary Formula Student driverless car. Cross-platform native via Tauri 2.",
+    "longDescription": "ISC MingoROS is the desktop companion to the mingoros CLI: a native Go/No-Go board that joins the car's ROS 2 DDS graph over Ethernet and shows the autonomous state machine, EBS / RES / ASMS safety interlocks, and mission state at a glance — for bench commissioning of a stationary Formula Student driverless car. Cross-platform native via Tauri 2.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

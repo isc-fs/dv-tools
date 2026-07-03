@@ -1,7 +1,7 @@
 [package]
 name         = "mingoros-core"
-version      = "0.1.0"
-description  = "Core library for MingoROS — the DV-stack ROS2 topic debugger"
+version      = "0.1.1"
+description  = "Core library for ISC MingoROS — the DV-stack ROS2 topic debugger"
 edition      .workspace = true
 rust-version .workspace = true
 license      .workspace = true
@@ -16,6 +16,9 @@ tracing   .workspace = true
 ros2-client = { version = "0.9", optional = true }
 futures = { version = "0.3", optional = true }
 serialport = "4.7"
+# Host network-interface enumeration (for the DDS interface picker). Pure OS
+# calls (getifaddrs / GetAdaptersAddresses) — no pcap, cross-platform.
+if-addrs = "0.13"
 
 [features]
 default = []

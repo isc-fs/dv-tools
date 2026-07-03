@@ -7,7 +7,7 @@
 -->
 <script lang="ts">
     import type { OverallState, TopicSnapshot } from '../types';
-    import { extractWord, fmtAge } from '../model';
+    import { assiLook, extractWord, fmtAge } from '../model';
 
     interface Props {
         /** Verdict state — themes the whole banner. */
@@ -27,6 +27,10 @@
     const word = $derived(
         ok && asRow ? extractWord(asRow.value) || asRow.value || '— — —' : '— — —',
     );
+
+    // The car's ASSI light (yellow/blue/off + flashing) for this AS state, so
+    // the app mirrors the physical indicator. Off/grey when there's no data.
+    const assi = $derived(assiLook(ok ? word : null));
 
     // enum number pulled from the "data: N" prefix, for the raw line.
     const enumNum = $derived.by<string | null>(() => {
@@ -54,13 +58,19 @@
 </script>
 
 <section class="verdict {stateClass}" aria-live="polite">
-    <div class="as">
+    <div class="as assi-{assi.color}" class:assi-blink={assi.blink}>
         <span class="rail"></span>
         <div class="eyebrow">
             <span>Autonomous system · /assi/state</span>
             <span class="age" class:stale>{ageText}</span>
         </div>
-        <div class="word">{word}</div>
+        <div class="word-row">
+            <span
+                class="assi-led"
+                title="ASSI — mirrors the car's Autonomous System Status Indicator light"
+            ></span>
+            <div class="word">{word}</div>
+        </div>
         <div class="raw">
             {#if ok && asRow}
                 enum <b>{enumNum}</b> · {asRow.value}

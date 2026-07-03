@@ -28,6 +28,7 @@
     } from './lib/model';
 
     import AppBar from './lib/components/AppBar.svelte';
+    import UpdateBanner from './lib/components/UpdateBanner.svelte';
     import StatusBanner from './lib/components/StatusBanner.svelte';
     import StateHero from './lib/components/StateHero.svelte';
     import FactCards from './lib/components/FactCards.svelte';
@@ -131,6 +132,8 @@
 <div id="ambient" aria-hidden="true"></div>
 
 <AppBar {meta} {live} {liveText} connect={reconnect} />
+
+<UpdateBanner />
 
 <div class="safety-strip" role="alert">
     <span class="warn-glyph" aria-hidden="true">▲</span>

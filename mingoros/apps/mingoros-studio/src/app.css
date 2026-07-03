@@ -1135,6 +1135,69 @@ tr.stale .tag {
     }
 }
 
+/* ---- auto-update banner ---- */
+.update-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 20px;
+    font-size: 12.5px;
+    color: var(--ink);
+    background: var(--panel-2);
+    border-bottom: 1px solid var(--accent-dim);
+    box-shadow: inset 0 2px 0 var(--accent);
+}
+.update-bar.err {
+    border-bottom-color: var(--no-line);
+    box-shadow: inset 0 2px 0 var(--no);
+    color: var(--no-ink);
+}
+.update-bar b {
+    color: var(--accent);
+}
+.update-bar.err b {
+    color: var(--no-ink);
+}
+.up-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex: none;
+    background: var(--accent);
+    box-shadow: 0 0 10px var(--accent);
+}
+.up-dot.busy {
+    animation: assiflash 0.8s steps(1, end) infinite;
+}
+.up-actions {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+}
+.update-bar button {
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--line-2);
+}
+.up-ghost {
+    background: transparent;
+    color: var(--ink-dim);
+}
+.up-ghost:hover {
+    color: var(--ink);
+}
+.up-go {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #04121f;
+}
+.up-go:hover {
+    box-shadow: 0 0 14px -3px var(--accent);
+}
+
 /* ---- persistent safety strip (car must be on stands) ---- */
 .safety-strip {
     position: sticky;

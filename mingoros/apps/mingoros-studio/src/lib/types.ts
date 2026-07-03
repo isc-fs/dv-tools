@@ -68,3 +68,10 @@ export interface EbsResult {
     success: boolean;
     message: string;
 }
+
+/** A host network interface (from `list_interfaces`) — for the DDS iface picker. */
+export interface NetInterface {
+    name: string;
+    ip: string;
+    loopback: boolean;
+}

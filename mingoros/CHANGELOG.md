@@ -12,11 +12,13 @@ First follow-up to the initial release — no breaking changes.
 - **AS-state readout mirrors the car's ASSI light** — AS_READY solid yellow,
   AS_DRIVING flashing yellow, AS_FINISHED solid blue, AS_EMERGENCY flashing
   blue, AS_OFF grey — so the board reads the same as the light on the car.
-- **Auto-update on launch** (`tauri-plugin-updater`): the app checks the shared
-  **iskApps** channel for a newer signed build and offers *Install & restart*
-  (download → verify minisign signature → relaunch). Release CI signs the
-  updater artifacts and mirrors installers + `latest.json` to `isc-fs/iskapps`.
-  Setup in `docs/UPDATES.md`.
+- **Auto-update on launch** (`tauri-plugin-updater`): the app checks the newest
+  **dv-tools GitHub Release** for a newer signed build and offers *Install &
+  restart* (download → verify minisign signature → relaunch). Release CI signs
+  the updater artifacts and attaches a combined `latest.json` (all platforms) to
+  the same release — no cross-repo token needed. Setup in `docs/UPDATES.md`.
+- **Windows now ships a single NSIS `-setup.exe`** (dropped the `.msi`) so the
+  installed format matches what the auto-updater serves.
 
 ## mingoros-v0.1.0 — first release
 

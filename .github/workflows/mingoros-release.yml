@@ -6,7 +6,7 @@ name: ISC MingoROS Release
 #   ISC MingoROS (Tauri desktop app):
 #     Linux   →  .deb  .AppImage  .rpm
 #     macOS   →  .dmg  (universal — Apple Silicon + Intel)
-#     Windows →  .msi  + NSIS .exe
+#     Windows →  NSIS -setup.exe
 #   mingoros CLI (Rust binary):
 #     Linux x86_64 / aarch64, macOS aarch64 / x86_64, Windows x86_64
 #
@@ -88,7 +88,7 @@ jobs:
             ### ISC MingoROS (desktop app)
             - **macOS**: `.dmg` (universal, ad-hoc signed — first launch needs **right-click → Open → confirm**)
             - **Linux**: `.deb`, `.AppImage`, or `.rpm`
-            - **Windows**: `.msi` (preferred) or the NSIS `-setup.exe`.
+            - **Windows**: the NSIS `-setup.exe`.
               Requires **Npcap** installed (the RustDDS transport uses pcap libs) — https://npcap.com
 
             Connect the laptop to the car PC over wired Ethernet (same subnet); the app auto-joins ROS domain 0.
@@ -282,9 +282,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Signs the updater artifacts (.app.tar.gz / .AppImage / NSIS) with the
           # minisign key whose PUBLIC half is in tauri.conf's plugins.updater.
-          # If the secret is absent, tauri-action still bundles but skips signing
-          # (the auto-updater then has nothing to verify — set the secret to ship
-          # updates).
+          # createUpdaterArtifacts:true + a pubkey in config means this key is
+          # REQUIRED: if the secret is absent the Tauri bundler hard-fails the
+          # build ("a public key has been found, but no private key"), so set the
+          # two TAURI_SIGNING_* secrets before tagging a release.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
@@ -293,66 +294,59 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.tauri_args }}
+          # Each matrix OS would otherwise upload its OWN single-platform
+          # latest.json (they clobber to one). Suppress it so the downstream
+          # `updater-manifest` job is the SOLE producer of a combined, all-platform
+          # manifest — and so a failed leg can never leave a broken partial one live.
+          uploadUpdaterJson: false
 
-  # ---- Mirror to the public iskApps channel + signed update manifest --------
+  # ---- Signed auto-update manifest (attached to this repo's Release) ---------
   #
   # The app's auto-updater (tauri-plugin-updater) polls
-  #   https://raw.githubusercontent.com/isc-fs/iskapps/main/mingoros/latest.json
-  # (set in tauri.conf's plugins.updater). This job publishes the installers +
-  # signed updater artifacts to the shared isc-fs/iskapps release channel and
-  # commits a combined Tauri `latest.json` (all platforms) there — the same
-  # pattern WarioCharger uses. Mirrors so all team apps live in one place.
-  #
-  # Requires a repo secret RELEASES_REPO_TOKEN (a fine-grained PAT with
-  # Contents: read & write on isc-fs/iskapps). Absent → the job logs a warning
-  # and skips, so it never breaks a release.
-  mirror-iskapps:
-    name: mirror to iskApps + publish update manifest
-    needs: [studio-build, cli-build]
+  #   https://github.com/isc-fs/dv-tools/releases/latest/download/latest.json
+  # (set in tauri.conf's plugins.updater). tauri-action attached the signed
+  # updater artifacts (.app.tar.gz / .AppImage / NSIS -setup.exe + .sig) to this
+  # release but — with uploadUpdaterJson:false — did NOT publish its own
+  # single-platform latest.json. This job is the SOLE producer: it rebuilds ONE
+  # combined manifest covering every platform from the release's own signed
+  # artifacts and attaches it with the built-in GITHUB_TOKEN (no cross-repo
+  # token). It requires ALL studio-build legs to have succeeded (so a partial
+  # build never publishes a manifest missing a platform); CLI builds are
+  # unrelated to the desktop updater, so it does NOT depend on them.
+  updater-manifest:
+    name: publish combined update manifest
+    needs: [studio-build]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: Gate on the mirror token
-        id: gate
-        run: |
-          if [ -z "${{ secrets.RELEASES_REPO_TOKEN }}" ]; then
-            echo "::warning::RELEASES_REPO_TOKEN not set — skipping iskApps mirror."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Download release assets from dv-tools
-        if: steps.gate.outputs.skip == 'false'
+      - name: Download signed updater artifacts from this release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eu
           mkdir -p dist
-          gh release download "${{ github.ref_name }}" --repo isc-fs/dv-tools --dir dist \
+          # No `|| true`: a download failure must fail the job, not silently yield
+          # a truncated manifest (the completeness check below is the backstop).
+          gh release download "${{ github.ref_name }}" --repo ${{ github.repository }} --dir dist \
             --pattern '*.app.tar.gz' --pattern '*.app.tar.gz.sig' \
             --pattern '*.AppImage'   --pattern '*.AppImage.sig' \
-            --pattern '*-setup.exe'  --pattern '*-setup.exe.sig' \
-            --pattern '*.dmg' --pattern '*.deb' --pattern '*.rpm' --pattern '*.msi' \
-            --pattern 'mingoros-*.tar.gz' --pattern 'mingoros-*.zip' || true
+            --pattern '*-setup.exe'  --pattern '*-setup.exe.sig'
           ls -l dist
 
-      - name: Publish to iskApps + commit latest.json
-        if: steps.gate.outputs.skip == 'false'
+      - name: Build the combined manifest + attach to the release
         env:
-          GH_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
         run: |
           set -eu
           V="${VERSION#mingoros-v}"
-          BASE="https://github.com/isc-fs/iskapps/releases/download/${VERSION}"
-          # 1. publish every asset to the versioned iskApps release
-          gh release create "$VERSION" --repo isc-fs/iskapps \
-            --title "ISC MingoROS ${V}" \
-            --notes "Installers for ISC MingoROS ${V}." dist/* \
-          || gh release upload "$VERSION" --repo isc-fs/iskapps dist/* --clobber
-          # 2. build the combined Tauri update manifest (all platforms at once —
-          #    tauri-action's per-OS latest.json would otherwise clobber).
+          BASE="https://github.com/${REPO}/releases/download/${VERSION}"
+          # The updater artifacts already live on THIS release; the manifest just
+          # points at them. Built all-at-once so every platform is in one file
+          # (tauri-action's per-OS latest.json would otherwise clobber to one).
           export V BASE
           export PUB_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           python3 - <<'PY'
@@ -375,17 +369,24 @@ jobs:
           if lin: plats["linux-x86_64"] = lin
           win = entry(first("*-setup.exe"))
           if win: plats["windows-x86_64"] = win
-          if not plats:
-              raise SystemExit("::error::no signed updater artifacts found — is TAURI_SIGNING_PRIVATE_KEY set?")
+          # Publish only a COMPLETE manifest. Missing a platform here means a
+          # signed artifact didn't download (flake) or wasn't built/signed — fail
+          # loudly rather than ship a manifest that silently withholds updates
+          # from the absent platform. (Since uploadUpdaterJson:false, a failed job
+          # leaves NO latest.json on the release, so the app just sees "no update"
+          # instead of a wrong one.)
+          required = {"darwin-aarch64", "darwin-x86_64", "linux-x86_64", "windows-x86_64"}
+          missing = required - set(plats)
+          if missing:
+              raise SystemExit(
+                  f"::error::update manifest incomplete — missing {sorted(missing)}; "
+                  f"have {sorted(plats)}. Is TAURI_SIGNING_PRIVATE_KEY set and did every "
+                  f"studio-build OS leg attach its signed artifacts?")
           manifest = {"version": V, "notes": f"ISC MingoROS {V}", "pub_date": PUB, "platforms": plats}
           open("latest.json", "w").write(json.dumps(manifest, indent=2))
           print(json.dumps(manifest, indent=2))
           PY
-          # 3. commit the manifest to iskapps/mingoros/latest.json (the endpoint)
-          CONTENT="$(base64 -w0 latest.json)"
-          SHA="$(gh api repos/isc-fs/iskapps/contents/mingoros/latest.json --jq .sha 2>/dev/null || true)"
-          gh api -X PUT repos/isc-fs/iskapps/contents/mingoros/latest.json \
-            -f message="mingoros ${VERSION}: update manifest" \
-            -f content="$CONTENT" \
-            ${SHA:+-f sha="$SHA"}
-          echo "✓ iskApps updated → https://raw.githubusercontent.com/isc-fs/iskapps/main/mingoros/latest.json"
+          # Attach the combined manifest — the file the app's endpoint fetches.
+          # `--clobber` so a re-run of this job overwrites cleanly.
+          gh release upload "$VERSION" --repo "$REPO" latest.json --clobber
+          echo "✓ update manifest attached → ${BASE}/latest.json"

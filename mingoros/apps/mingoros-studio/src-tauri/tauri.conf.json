@@ -33,7 +33,7 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://raw.githubusercontent.com/isc-fs/iskapps/main/mingoros/latest.json"
+        "https://github.com/isc-fs/dv-tools/releases/latest/download/latest.json"
       ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg2NTZDODYwMDA2QTFENzIKUldSeUhXb0FZTWhXaHFQSTAxWHY0S0FPbHArQUVTQzlvOFRBb3UzZ1ExVmh2cEUrMVJaNU1oYnMK"
     }
@@ -41,7 +41,7 @@
   "bundle": {
     "active": true,
     "createUpdaterArtifacts": true,
-    "targets": "all",
+    "targets": ["app", "dmg", "appimage", "deb", "rpm", "nsis"],
     "category": "DeveloperTool",
     "copyright": "Copyright © 2026 ISC Racing Team — IFS08 Driverless",
     "shortDescription": "Debug the DV state machine + safety systems on a stopped car.",

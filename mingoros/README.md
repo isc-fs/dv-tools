@@ -24,7 +24,7 @@ Download the latest from
 
 | | macOS | Linux | Windows |
 |---|---|---|---|
-| **ISC MingoROS** desktop app | `.dmg` (universal) | `.deb` / `.AppImage` / `.rpm` | `.msi` / `-setup.exe` |
+| **ISC MingoROS** desktop app | `.dmg` (universal) | `.deb` / `.AppImage` / `.rpm` | `-setup.exe` (NSIS) |
 | **`mingoros`** CLI | binary (aarch64/x86_64) | binary (x86_64/aarch64) | `.exe` |
 
 macOS `.dmg` is ad-hoc signed — first launch needs **right-click → Open →

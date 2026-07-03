@@ -22,8 +22,8 @@ tauri-build = { version = "2", features = [] }
 # Tauri 2 — the desktop application framework.
 tauri = { version = "2", features = [] }
 
-# Signed auto-update: on launch the app checks the iskApps `latest.json`, and on
-# confirm downloads + verifies + installs the signed bundle, then relaunches.
+# Signed auto-update: on launch the app checks the dv-tools release `latest.json`,
+# and on confirm downloads + verifies + installs the signed bundle, then relaunches.
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 

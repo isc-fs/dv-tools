@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## mingoros-v0.3.0
 
 - **Echo multiple topics at once** in the Topic echo tab — add several topics and
   watch their messages interleave in one colour-coded stream, each tagged by

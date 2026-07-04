@@ -75,3 +75,33 @@ export interface NetInterface {
     ip: string;
     loopback: boolean;
 }
+
+/** A topic on the graph (from `list_topics`) — for the generic echo picker. */
+export interface TopicInfo {
+    name: string;
+    type_name: string;
+    qos?: string | null;
+    note?: string | null;
+}
+
+/** One received message in the generic echo view (mirrors Rust `Sample`). */
+export interface EchoSample {
+    topic: string;
+    type_name: string;
+    seq: number;
+    /** Milliseconds since the echo subscription started. */
+    t_ms: number;
+    /** Decoded value string, or "(live — payload not decoded)" for unknown types. */
+    summary: string;
+}
+
+/** Response shape of `echo_tail`: the running session's recent samples. */
+export interface EchoTail {
+    /** Topic being echoed, or null when no session is running. */
+    topic: string | null;
+    /** Whether the background stream is still alive (false once it ends). */
+    running: boolean;
+    /** Total samples received this session (the ring buffer may hold fewer). */
+    total: number;
+    samples: EchoSample[];
+}

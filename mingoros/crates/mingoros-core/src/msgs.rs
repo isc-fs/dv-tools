@@ -38,6 +38,51 @@ pub struct StringMsg {
     pub data: String,
 }
 
+// --- the rest of the std_msgs scalar family, for the generic echo tab's
+// type-keyed decode (a `std_msgs/Xxx` topic on the graph → readable `data:`). ---
+
+/// `std_msgs/Float64` — `float64 data`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Float64 {
+    pub data: f64,
+}
+
+/// `std_msgs/Int8` — `int8 data`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Int8 {
+    pub data: i8,
+}
+
+/// `std_msgs/Int16` — `int16 data`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Int16 {
+    pub data: i16,
+}
+
+/// `std_msgs/Int64` — `int64 data`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Int64 {
+    pub data: i64,
+}
+
+/// `std_msgs/UInt16` — `uint16 data`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UInt16 {
+    pub data: u16,
+}
+
+/// `std_msgs/UInt32` — `uint32 data`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UInt32 {
+    pub data: u32,
+}
+
+/// `std_msgs/UInt64` — `uint64 data`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UInt64 {
+    pub data: u64,
+}
+
 /// `geometry_msgs/Point` — `float64 x, y, z`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Point {
@@ -101,6 +146,20 @@ pub struct Twist {
     pub angular: Vector3,
 }
 
+/// `geometry_msgs/Accel` — same shape as `Twist` (two `Vector3`s).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Accel {
+    pub linear: Vector3,
+    pub angular: Vector3,
+}
+
+/// `geometry_msgs/PoseStamped`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PoseStamped {
+    pub header: Header,
+    pub pose: Pose,
+}
+
 // --- prefix structs: read only the leading fields, ignore the trailing
 // covariance arrays. Valid because these are top-level (not sequence) messages
 // — CDR reads the defined fields in order and leaves the rest of the buffer
@@ -126,6 +185,51 @@ pub struct Imu {
     pub angular_velocity: Vector3,
     pub angular_velocity_covariance: [f64; 9],
     pub linear_acceleration: Vector3,
+}
+
+/// `sensor_msgs/NavSatStatus` — `int8 status; uint16 service`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NavSatStatus {
+    pub status: i8,
+    pub service: u16,
+}
+
+/// `sensor_msgs/NavSatFix` **prefix** — up to `altitude`; the trailing
+/// `float64[9] position_covariance` + `uint8 position_covariance_type` unread.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NavSatFix {
+    pub header: Header,
+    pub status: NavSatStatus,
+    pub latitude: f64,
+    pub longitude: f64,
+    pub altitude: f64,
+}
+
+/// `sensor_msgs/Range` — no trailing arrays, read in full.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Range {
+    pub header: Header,
+    pub radiation_type: u8,
+    pub field_of_view: f32,
+    pub min_range: f32,
+    pub max_range: f32,
+    pub range: f32,
+}
+
+/// `sensor_msgs/Temperature` — `Header header; float64 temperature, variance`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Temperature {
+    pub header: Header,
+    pub temperature: f64,
+    pub variance: f64,
+}
+
+/// `sensor_msgs/FluidPressure` — `Header header; float64 fluid_pressure, variance`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FluidPressure {
+    pub header: Header,
+    pub fluid_pressure: f64,
+    pub variance: f64,
 }
 
 /// `fs_msgs/ControlCommand` — `Header header; float64 throttle, steering, brake`.

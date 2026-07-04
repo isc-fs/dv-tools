@@ -106,6 +106,17 @@ pub trait RosClient: Send + Sync {
     /// Subscribe and receive a blocking stream of samples.
     fn subscribe(&self, topic: &str) -> Result<Box<dyn SampleStream>, RosError>;
 
+    /// Subscribe to **any** topic for the generic echo view — not just the
+    /// known DV-contract topics. The real backend decodes standard ROS types
+    /// (std_msgs scalars/String, common geometry_msgs/nav_msgs/sensor_msgs) by
+    /// their discovered type name, and for a type it has no decoder for still
+    /// reports liveness (arrival + rate + type name) rather than erroring.
+    /// Default: fall through to [`subscribe`], so the fake backend and any
+    /// contract-only backend need no extra code.
+    fn subscribe_raw(&self, topic: &str) -> Result<Box<dyn SampleStream>, RosError> {
+        self.subscribe(topic)
+    }
+
     /// Publish a simple value onto a topic (echoed/logged by the fake; the
     /// `ros2` backend will type-check + serialise). Routed through the
     /// actuation safety gate at the CLI/GUI layer for command topics.

@@ -56,6 +56,11 @@ e-stop bar, and a discovered-topic count in the connection bar. A guarded
 **Force EBS** control fires the emergency brake for a car-on-stands checkup
 (behind a confirmation).
 
+A second **Topic echo** tab echoes *any* topic on the graph — pick one from the
+discovered list or type a path. Standard ROS types decode to readable fields;
+anything else still shows liveness (arrival + rate + type). The safety strip
+stays pinned across both tabs.
+
 ```bash
 cd mingoros/apps/mingoros-studio
 npm install && npx @tauri-apps/cli icon src-tauri/icons/icon.png

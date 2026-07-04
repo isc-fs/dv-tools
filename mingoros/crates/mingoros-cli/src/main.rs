@@ -251,7 +251,10 @@ fn cmd_topics(conn: Conn, json: bool) -> Result<()> {
 
 fn cmd_echo(conn: Conn, json: bool, topic: &str, count: Option<u64>) -> Result<()> {
     let client = make_client(conn)?;
-    let mut stream = client.subscribe(topic)?;
+    // Generic path: decode any topic (contract topics richly, standard ROS
+    // types by their type name, unknown types as liveness) rather than only
+    // the DV-contract set.
+    let mut stream = client.subscribe_raw(topic)?;
     if !json {
         eprintln!("echoing {topic} (Ctrl-C to stop)\n");
     }
@@ -277,7 +280,7 @@ fn cmd_hz(conn: Conn, topic: &str, samples: u64) -> Result<()> {
         bail!("--samples must be >= 2 to compute a rate");
     }
     let client = make_client(conn)?;
-    let mut stream = client.subscribe(topic)?;
+    let mut stream = client.subscribe_raw(topic)?;
     eprintln!("measuring {topic} over {samples} samples...");
 
     let start = Instant::now();

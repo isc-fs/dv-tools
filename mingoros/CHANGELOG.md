@@ -1,5 +1,17 @@
 # Changelog
 
+## mingoros-v0.2.0
+
+- **Generic "Topic echo" tab** in the desktop app — echo **any** topic on the
+  graph, not just the DV-contract set. Pick from the discovered-topic list or
+  type a path; standard ROS types (std_msgs scalars/String, common
+  geometry_msgs / nav_msgs / sensor_msgs) decode to readable fields, and any
+  other type still shows liveness (arrival + rate + type name). Backed by a new
+  `subscribe_raw` transport path; the `mingoros echo` / `hz` CLI commands use it
+  too, so they now work on arbitrary topics instead of only the contract set.
+  (The board's Go/No-Go view is unchanged; a tab bar switches between them and
+  the safety strip stays pinned on both.)
+
 ## mingoros-v0.1.1
 
 First follow-up to the initial release — no breaking changes.

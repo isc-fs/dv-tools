@@ -1506,3 +1506,219 @@ tr.stale .tag {
         opacity: 0.15;
     }
 }
+
+/* ---- Tab bar (Go/No-Go board vs. Topic echo) ---- */
+.tabbar {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--line);
+}
+.tabbar .tab {
+    appearance: none;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--ink-dim);
+    font: 600 13px/1 var(--sans);
+    letter-spacing: 0.02em;
+    padding: 10px 14px;
+    margin-bottom: -1px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+}
+.tabbar .tab:hover {
+    color: var(--ink);
+}
+.tabbar .tab.active {
+    color: var(--ink);
+    border-bottom-color: var(--accent);
+}
+
+/* ---- Generic topic echo ---- */
+.echo {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.echo-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+.echo-select,
+.echo-custom {
+    appearance: none;
+    background: var(--panel-2);
+    border: 1px solid var(--line-2);
+    border-radius: 8px;
+    color: var(--ink);
+    font: 13px/1 var(--sans);
+    padding: 9px 11px;
+}
+.echo-select {
+    min-width: 240px;
+    max-width: 360px;
+}
+.echo-custom {
+    flex: 1;
+    min-width: 160px;
+    font-family: var(--mono);
+}
+.echo-select:focus,
+.echo-custom:focus {
+    outline: none;
+    border-color: var(--accent-dim);
+}
+.echo-select:disabled,
+.echo-custom:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.echo-go,
+.echo-stop,
+.echo-refresh {
+    appearance: none;
+    border: 1px solid var(--line-2);
+    border-radius: 8px;
+    font: 600 13px/1 var(--sans);
+    padding: 9px 16px;
+    cursor: pointer;
+    transition: filter 0.15s, opacity 0.15s;
+}
+.echo-go {
+    background: var(--accent-dim);
+    border-color: var(--accent-dim);
+    color: #fff;
+}
+.echo-go:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+.echo-stop {
+    background: var(--no-bg);
+    border-color: var(--no-line);
+    color: var(--no-ink);
+}
+.echo-refresh {
+    background: var(--panel-2);
+    color: var(--ink-dim);
+    padding: 9px 12px;
+}
+.echo-go:hover:not(:disabled),
+.echo-stop:hover,
+.echo-refresh:hover:not(:disabled) {
+    filter: brightness(1.15);
+}
+.echo-err {
+    border: 1px solid var(--no-line);
+    background: var(--no-bg);
+    color: var(--no-ink);
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-family: var(--mono);
+    font-size: 12px;
+}
+.echo-metabar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 4px 2px;
+    font-size: 12px;
+    color: var(--ink-dim);
+}
+.echo-metabar .grow {
+    flex: 1;
+}
+.echo-topic {
+    font-family: var(--mono);
+    color: var(--ink);
+    font-weight: 600;
+}
+.echo-type {
+    font-family: var(--mono);
+    color: var(--accent);
+    background: rgba(77, 157, 255, 0.1);
+    border-radius: 5px;
+    padding: 2px 7px;
+}
+.echo-stat {
+    font-family: var(--mono);
+}
+.echo-live {
+    font-family: var(--mono);
+    font-weight: 600;
+}
+.echo-live.on {
+    color: var(--go);
+}
+.echo-live.off {
+    color: var(--ink-faint);
+}
+.echo-follow {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    user-select: none;
+}
+.echo-stream {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--ground-2);
+    height: 60vh;
+    min-height: 280px;
+    overflow-y: auto;
+    padding: 6px 0;
+    font-family: var(--mono);
+    font-size: 12.5px;
+}
+.echo-row {
+    display: flex;
+    gap: 12px;
+    padding: 3px 14px;
+    border-bottom: 1px solid rgba(33, 43, 58, 0.4);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.echo-row:hover {
+    background: var(--panel);
+}
+.echo-seq {
+    color: var(--ink-faint);
+    min-width: 44px;
+    text-align: right;
+}
+.echo-tt {
+    color: var(--ink-faint);
+    min-width: 74px;
+}
+.echo-val {
+    color: var(--ink);
+    flex: 1;
+}
+.echo-empty,
+.echo-idle {
+    color: var(--ink-dim);
+    padding: 22px 16px;
+}
+.echo-idle {
+    border: 1px dashed var(--line-2);
+    border-radius: 10px;
+    background: var(--panel);
+}
+.echo-idle strong {
+    color: var(--ink);
+}
+.echo-idle em {
+    color: var(--accent);
+    font-style: normal;
+    font-weight: 600;
+}
+.echo-note {
+    font-size: 12px;
+    color: var(--ink-faint);
+    margin-bottom: 0;
+}

@@ -29,12 +29,14 @@
 
     import AppBar from './lib/components/AppBar.svelte';
     import UpdateBanner from './lib/components/UpdateBanner.svelte';
+    import TabBar, { type TabId } from './lib/components/TabBar.svelte';
     import StatusBanner from './lib/components/StatusBanner.svelte';
     import StateHero from './lib/components/StateHero.svelte';
     import FactCards from './lib/components/FactCards.svelte';
     import ResBar from './lib/components/ResBar.svelte';
     import Checklist from './lib/components/Checklist.svelte';
     import RawTopics from './lib/components/RawTopics.svelte';
+    import EchoViewer from './lib/components/EchoViewer.svelte';
 
     const POLL_MS = 250;
 
@@ -43,6 +45,7 @@
     let meta = $state<Meta>({});
     let live = $state<boolean>(false);
     let liveText = $state<string>('connecting');
+    let tab = $state<TabId>('board');
 
     // ---- Derivations (all pure, from lib/model) ----
     const byTopic = $derived(indexByTopic(topics));
@@ -145,32 +148,38 @@
 </div>
 
 <main>
-    <StatusBanner state={overallState} tag={overallTag} />
+    <TabBar active={tab} onSelect={(t) => (tab = t)} />
 
-    <StateHero
-        state={verdict.state}
-        asRow={byTopic['/assi/state']}
-        reason={verdict.reason}
-    />
+    {#if tab === 'board'}
+        <StatusBanner state={overallState} tag={overallTag} />
 
-    <FactCards {byTopic} />
-
-    <ResBar {byTopic} />
-
-    <section class="lists">
-        <Checklist
-            title="Safety chain / AS arming"
-            names={safetyNames}
-            map={signalMap}
-            waiting={checklistWaiting}
+        <StateHero
+            state={verdict.state}
+            asRow={byTopic['/assi/state']}
+            reason={verdict.reason}
         />
-        <Checklist
-            title="Drive readiness"
-            names={DRIVE_ORDER}
-            map={signalMap}
-            waiting={checklistWaiting}
-        />
-    </section>
 
-    <RawTopics rows={topics} {meta} />
+        <FactCards {byTopic} />
+
+        <ResBar {byTopic} />
+
+        <section class="lists">
+            <Checklist
+                title="Safety chain / AS arming"
+                names={safetyNames}
+                map={signalMap}
+                waiting={checklistWaiting}
+            />
+            <Checklist
+                title="Drive readiness"
+                names={DRIVE_ORDER}
+                map={signalMap}
+                waiting={checklistWaiting}
+            />
+        </section>
+
+        <RawTopics rows={topics} {meta} />
+    {:else}
+        <EchoViewer live={isTauri()} />
+    {/if}
 </main>

@@ -13,9 +13,11 @@ import { invoke } from '@tauri-apps/api/core';
 
 import type {
     EbsResult,
+    EchoTail,
     Meta,
     NetInterface,
     StateResponse,
+    TopicInfo,
     TopicSnapshot,
 } from './types';
 
@@ -138,6 +140,71 @@ export function listInterfaces(): Promise<NetInterface[]> {
         ]);
     }
     return invoke<NetInterface[]>('list_interfaces');
+}
+
+// ---- Generic echo tab ----
+
+/** Topics visible on the graph, for the echo picker. Demo returns a sample set. */
+export function listTopics(): Promise<TopicInfo[]> {
+    if (IN_BROWSER) {
+        return Promise.resolve([
+            { name: '/debug', type_name: 'std_msgs/msg/String' },
+            { name: '/assi/state', type_name: 'std_msgs/msg/UInt8' },
+            { name: '/ctrl/cmd', type_name: 'geometry_msgs/msg/Twist' },
+            { name: '/slam/pose', type_name: 'nav_msgs/msg/Odometry' },
+            { name: '/imu', type_name: 'sensor_msgs/msg/Imu' },
+            { name: '/perception/cones', type_name: 'sensor_msgs/msg/PointCloud2' },
+        ]);
+    }
+    return invoke<TopicInfo[]>('list_topics');
+}
+
+// Demo echo: a module-local synthetic stream so the tab works standalone.
+let demoEchoTopic: string | null = null;
+let demoEchoStart = 0;
+
+/** Start echoing `topic` (replaces any running session). */
+export function echoStart(topic: string): Promise<void> {
+    if (IN_BROWSER) {
+        demoEchoTopic = topic;
+        demoEchoStart = Date.now();
+        return Promise.resolve();
+    }
+    return invoke<void>('echo_start', { topic });
+}
+
+/** The last `limit` samples of the running echo session. */
+export function echoTail(limit: number): Promise<EchoTail> {
+    if (IN_BROWSER) {
+        if (!demoEchoTopic) {
+            return Promise.resolve({ topic: null, running: false, total: 0, samples: [] });
+        }
+        const elapsed = Date.now() - demoEchoStart;
+        const total = Math.floor(elapsed / 500); // ~2 Hz
+        const decoded = demoEchoTopic !== '/perception/cones';
+        const n = Math.min(total, limit);
+        const samples = Array.from({ length: n }, (_, i) => {
+            const seq = total - n + i;
+            return {
+                topic: demoEchoTopic!,
+                type_name: 'demo',
+                seq,
+                t_ms: seq * 500,
+                summary: decoded ? `data: demo sample #${seq}` : '(live — payload not decoded)',
+            };
+        });
+        return Promise.resolve({ topic: demoEchoTopic, running: true, total, samples });
+    }
+    return invoke<EchoTail>('echo_tail', { limit });
+}
+
+/** Stop the running echo session. */
+export function echoStop(): Promise<void> {
+    if (IN_BROWSER) {
+        demoEchoTopic = null;
+        return Promise.resolve();
+    }
+    return invoke<void>('echo_stop');
 }
 
 /** Whether the Connect control is wired to a real backend. */

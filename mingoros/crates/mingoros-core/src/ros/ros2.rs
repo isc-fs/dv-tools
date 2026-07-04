@@ -133,6 +133,169 @@ impl Ros2Client {
             start: Instant::now(),
         }))
     }
+
+    /// Generic, TYPE-keyed decode for the echo view (vs `subscribe`'s
+    /// topic-keyed contract decode): given a topic + its discovered ROS type
+    /// name, subscribe with the matching curated struct at BEST_EFFORT (the
+    /// widest-matching reader — a best-effort reader matches both reliable and
+    /// best-effort writers). Returns `None` if the type has no curated decoder,
+    /// so the caller can fall back to a liveness-only subscription.
+    fn subscribe_by_type(
+        &self,
+        topic: &str,
+        type_name: &str,
+    ) -> Option<Result<Box<dyn SampleStream>, RosError>> {
+        let (pkg, ty) = split_ros_type(type_name)?;
+        let q = qos_best_effort();
+        Some(match (pkg, ty) {
+            ("std_msgs", "Bool") => {
+                self.subscribe_typed::<msgs::Bool>(topic, pkg, ty, q, |m| format!("data: {}", m.data))
+            }
+            ("std_msgs", "String") => {
+                self.subscribe_typed::<msgs::StringMsg>(topic, pkg, ty, q, |m| m.data.clone())
+            }
+            ("std_msgs", "Float32") => self
+                .subscribe_typed::<msgs::Float32>(topic, pkg, ty, q, |m| format!("data: {}", m.data)),
+            ("std_msgs", "Float64") => self
+                .subscribe_typed::<msgs::Float64>(topic, pkg, ty, q, |m| format!("data: {}", m.data)),
+            ("std_msgs", "Int8") => {
+                self.subscribe_typed::<msgs::Int8>(topic, pkg, ty, q, |m| format!("data: {}", m.data))
+            }
+            ("std_msgs", "Int16") => self
+                .subscribe_typed::<msgs::Int16>(topic, pkg, ty, q, |m| format!("data: {}", m.data)),
+            ("std_msgs", "Int32") => self
+                .subscribe_typed::<msgs::Int32>(topic, pkg, ty, q, |m| format!("data: {}", m.data)),
+            ("std_msgs", "Int64") => self
+                .subscribe_typed::<msgs::Int64>(topic, pkg, ty, q, |m| format!("data: {}", m.data)),
+            // Byte/Char are single-octet, same wire form as UInt8.
+            ("std_msgs", "UInt8" | "Byte" | "Char") => self
+                .subscribe_typed::<msgs::UInt8>(topic, pkg, ty, q, |m| format!("data: {}", m.data)),
+            ("std_msgs", "UInt16") => self
+                .subscribe_typed::<msgs::UInt16>(topic, pkg, ty, q, |m| format!("data: {}", m.data)),
+            ("std_msgs", "UInt32") => self
+                .subscribe_typed::<msgs::UInt32>(topic, pkg, ty, q, |m| format!("data: {}", m.data)),
+            ("std_msgs", "UInt64") => self
+                .subscribe_typed::<msgs::UInt64>(topic, pkg, ty, q, |m| format!("data: {}", m.data)),
+            ("std_msgs", "Header") => {
+                self.subscribe_typed::<msgs::Header>(topic, pkg, ty, q, |m| {
+                    format!("frame={} stamp={}.{:09}", m.frame_id, m.stamp.sec, m.stamp.nanosec)
+                })
+            }
+            ("builtin_interfaces", "Time") => self
+                .subscribe_typed::<msgs::Time>(topic, pkg, ty, q, |m| {
+                    format!("{}.{:09}", m.sec, m.nanosec)
+                }),
+            ("geometry_msgs", "Vector3") => self
+                .subscribe_typed::<msgs::Vector3>(topic, pkg, ty, q, |m| {
+                    format!("x={:.3} y={:.3} z={:.3}", m.x, m.y, m.z)
+                }),
+            ("geometry_msgs", "Point") => self
+                .subscribe_typed::<msgs::Point>(topic, pkg, ty, q, |m| {
+                    format!("x={:.3} y={:.3} z={:.3}", m.x, m.y, m.z)
+                }),
+            ("geometry_msgs", "Quaternion") => self
+                .subscribe_typed::<msgs::Quaternion>(topic, pkg, ty, q, |m| {
+                    format!("x={:.3} y={:.3} z={:.3} w={:.3} (yaw={:+.3})", m.x, m.y, m.z, m.w, m.yaw())
+                }),
+            ("geometry_msgs", "Twist") => {
+                self.subscribe_typed::<msgs::Twist>(topic, pkg, ty, q, |m| {
+                    format!(
+                        "linear[{:+.3},{:+.3},{:+.3}] angular[{:+.3},{:+.3},{:+.3}]",
+                        m.linear.x, m.linear.y, m.linear.z, m.angular.x, m.angular.y, m.angular.z
+                    )
+                })
+            }
+            ("geometry_msgs", "Accel") => {
+                self.subscribe_typed::<msgs::Accel>(topic, pkg, ty, q, |m| {
+                    format!(
+                        "linear[{:+.3},{:+.3},{:+.3}] angular[{:+.3},{:+.3},{:+.3}]",
+                        m.linear.x, m.linear.y, m.linear.z, m.angular.x, m.angular.y, m.angular.z
+                    )
+                })
+            }
+            ("geometry_msgs", "Pose") => {
+                self.subscribe_typed::<msgs::Pose>(topic, pkg, ty, q, |m| {
+                    format!(
+                        "pos[{:.3},{:.3},{:.3}] yaw={:+.3}",
+                        m.position.x, m.position.y, m.position.z, m.orientation.yaw()
+                    )
+                })
+            }
+            ("geometry_msgs", "PoseStamped") => self
+                .subscribe_typed::<msgs::PoseStamped>(topic, pkg, ty, q, |m| {
+                    format!(
+                        "pos[{:.3},{:.3},{:.3}] yaw={:+.3} (frame {})",
+                        m.pose.position.x, m.pose.position.y, m.pose.position.z,
+                        m.pose.orientation.yaw(), m.header.frame_id
+                    )
+                }),
+            ("nav_msgs", "Odometry") => self
+                .subscribe_typed::<msgs::OdometryPose>(topic, pkg, ty, q, |m| {
+                    format!(
+                        "x={:.2} y={:.2} yaw={:+.3} (frame {})",
+                        m.pose.position.x, m.pose.position.y, m.pose.orientation.yaw(), m.header.frame_id
+                    )
+                }),
+            ("sensor_msgs", "Imu") => self.subscribe_typed::<msgs::Imu>(topic, pkg, ty, q, |m| {
+                format!(
+                    "accel[{:+.2},{:+.2},{:+.2}] gyro.z={:+.3}",
+                    m.linear_acceleration.x, m.linear_acceleration.y, m.linear_acceleration.z,
+                    m.angular_velocity.z
+                )
+            }),
+            ("sensor_msgs", "NavSatFix") => self
+                .subscribe_typed::<msgs::NavSatFix>(topic, pkg, ty, q, |m| {
+                    format!("lat={:.7} lon={:.7} alt={:.2}", m.latitude, m.longitude, m.altitude)
+                }),
+            ("sensor_msgs", "Range") => self.subscribe_typed::<msgs::Range>(topic, pkg, ty, q, |m| {
+                format!("range={:.3} m (fov={:.3} rad, {:.2}–{:.2})", m.range, m.field_of_view, m.min_range, m.max_range)
+            }),
+            ("sensor_msgs", "Temperature") => self
+                .subscribe_typed::<msgs::Temperature>(topic, pkg, ty, q, |m| {
+                    format!("{:.2} °C", m.temperature)
+                }),
+            ("sensor_msgs", "FluidPressure") => self
+                .subscribe_typed::<msgs::FluidPressure>(topic, pkg, ty, q, |m| {
+                    format!("{:.1} Pa", m.fluid_pressure)
+                }),
+            ("fs_msgs", "ControlCommand") => self
+                .subscribe_typed::<msgs::ControlCommand>(topic, pkg, ty, q, |m| {
+                    format!("throttle={:+.3} steering={:+.3} brake={:.3}", m.throttle, m.steering, m.brake)
+                }),
+            _ => return None,
+        })
+    }
+
+    /// Liveness-only subscription for a topic whose type has no curated decoder:
+    /// register the discovered DDS type (so the reader matches the writer) but
+    /// deserialize each sample as `()` (payload ignored). The echo view then
+    /// still shows the topic is live + its rate + type name — just not fields.
+    fn subscribe_unit(
+        &self,
+        topic: &str,
+        type_name: &str,
+    ) -> Result<Box<dyn SampleStream>, RosError> {
+        let (pkg, ty) = split_ros_type(type_name)
+            .ok_or_else(|| RosError::Other(format!("unrecognised ROS type name {type_name:?}")))?;
+        let mut node = self.node.lock().unwrap();
+        let name =
+            Name::parse(topic).map_err(|e| RosError::Other(format!("bad topic {topic}: {e:?}")))?;
+        let q = qos_best_effort();
+        let ros_topic = node
+            .create_topic(&name, MessageTypeName::new(pkg, ty), &q)
+            .map_err(|e| RosError::Other(format!("create_topic {topic}: {e:?}")))?;
+        let sub = node
+            .create_subscription::<()>(&ros_topic, Some(q))
+            .map_err(|e| RosError::Other(format!("subscribe {topic}: {e:?}")))?;
+        Ok(Box::new(Ros2Stream {
+            sub,
+            fmt: |_: &()| "(live — payload not decoded)".to_string(),
+            topic: topic.to_string(),
+            type_name: type_name.to_string(),
+            seq: 0,
+            start: Instant::now(),
+        }))
+    }
 }
 
 impl RosClient for Ros2Client {
@@ -344,6 +507,23 @@ impl RosClient for Ros2Client {
         }
     }
 
+    fn subscribe_raw(&self, topic: &str) -> Result<Box<dyn SampleStream>, RosError> {
+        // 1. A known DV-contract topic → its rich, topic-specific decode.
+        if let Ok(stream) = self.subscribe(topic) {
+            return Ok(stream);
+        }
+        // 2. Otherwise dispatch on the topic's discovered ROS type name.
+        let type_name = self
+            .topic_info(topic)?
+            .map(|t| t.type_name)
+            .ok_or_else(|| RosError::TopicNotFound(topic.to_string()))?;
+        if let Some(res) = self.subscribe_by_type(topic, &type_name) {
+            return res;
+        }
+        // 3. No curated decoder for this type → liveness only.
+        self.subscribe_unit(topic, &type_name)
+    }
+
     fn publish(&self, _topic: &str, _value: &str) -> Result<(), RosError> {
         Err(RosError::Other(
             "ros2 backend is read-only for now — publishing onto a live DDS graph \
@@ -504,6 +684,19 @@ fn qos_service() -> QosPolicies {
             max_blocking_time: DdsDuration::from_millis(100),
         })
         .build()
+}
+
+/// `"std_msgs/msg/UInt8"` → `("std_msgs", "UInt8")` (the `pkg/msg/Type` form
+/// produced by [`demangle_type`]). `None` if it isn't a well-formed `msg` name.
+fn split_ros_type(type_name: &str) -> Option<(&str, &str)> {
+    let mut parts = type_name.split('/');
+    let pkg = parts.next()?;
+    let mid = parts.next()?;
+    let ty = parts.next()?;
+    if mid != "msg" || parts.next().is_some() || pkg.is_empty() || ty.is_empty() {
+        return None;
+    }
+    Some((pkg, ty))
 }
 
 /// DDS type name → ROS type name: `std_msgs::msg::dds_::UInt8_` → `std_msgs/msg/UInt8`.

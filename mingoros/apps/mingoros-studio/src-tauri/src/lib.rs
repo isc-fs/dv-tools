@@ -11,9 +11,10 @@
 //! `@tauri-apps/api`'s `invoke`.
 
 use mingoros_core::dashboard::{self, Snapshot};
-use mingoros_core::ros::RosClient;
-use std::collections::HashMap;
+use mingoros_core::ros::{RosClient, Sample};
+use std::collections::{HashMap, VecDeque};
 use std::net::IpAddr;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
@@ -167,6 +168,118 @@ fn force_ebs(engage: bool, client: tauri::State<ClientCell>) -> Result<serde_jso
     Ok(serde_json::json!({ "success": out.success, "message": out.message }))
 }
 
+// ---- Generic echo tab ------------------------------------------------------
+//
+// A running echo session pumps `subscribe_raw` (any topic — contract types
+// richly, standard ROS types by name, unknown types as liveness) into a ring
+// buffer on a background thread; the frontend polls `echo_tail`. Held in its
+// own cell, entirely separate from the safety board, so echoing an arbitrary
+// topic never disturbs the dashboard poll.
+
+const ECHO_CAP: usize = 1000;
+
+struct EchoSession {
+    topic: String,
+    buf: Arc<Mutex<VecDeque<Sample>>>,
+    stop: Arc<AtomicBool>,
+    running: Arc<AtomicBool>,
+}
+
+type EchoCell = Mutex<Option<EchoSession>>;
+
+/// Stop the current echo session (if any) and clear it.
+fn stop_echo(echo: &EchoCell) {
+    if let Some(sess) = echo.lock().unwrap_or_else(|p| p.into_inner()).take() {
+        sess.stop.store(true, Ordering::Relaxed);
+    }
+}
+
+/// Topics currently visible on the graph — for the echo tab's topic picker.
+#[tauri::command]
+fn list_topics(
+    client: tauri::State<ClientCell>,
+) -> Result<Vec<mingoros_core::ros::TopicInfo>, String> {
+    let guard = client.lock().unwrap_or_else(|p| p.into_inner());
+    let c = guard
+        .as_ref()
+        .ok_or_else(|| "not connected to a ROS graph yet".to_string())?;
+    c.list_topics().map_err(|e| e.to_string())
+}
+
+/// Start echoing `topic` (replacing any running session). Spawns a thread that
+/// pumps samples into a ring buffer until `echo_stop` or the topic goes silent.
+#[tauri::command]
+fn echo_start(
+    topic: String,
+    client: tauri::State<ClientCell>,
+    echo: tauri::State<EchoCell>,
+) -> Result<(), String> {
+    stop_echo(echo.inner());
+    // Subscribe under the client lock, then release it before pumping.
+    let mut stream = {
+        let guard = client.lock().unwrap_or_else(|p| p.into_inner());
+        let c = guard
+            .as_ref()
+            .ok_or_else(|| "not connected to a ROS graph yet".to_string())?;
+        c.subscribe_raw(&topic).map_err(|e| e.to_string())?
+    };
+    let buf = Arc::new(Mutex::new(VecDeque::with_capacity(ECHO_CAP)));
+    let stop = Arc::new(AtomicBool::new(false));
+    let running = Arc::new(AtomicBool::new(true));
+    {
+        let (buf, stop, running) = (buf.clone(), stop.clone(), running.clone());
+        std::thread::spawn(move || {
+            while !stop.load(Ordering::Relaxed) {
+                match stream.next_sample() {
+                    Some(s) => {
+                        let mut b = buf.lock().unwrap_or_else(|p| p.into_inner());
+                        if b.len() >= ECHO_CAP {
+                            b.pop_front();
+                        }
+                        b.push_back(s);
+                    }
+                    // ~20s of silence or a reader error ends the stream.
+                    None => break,
+                }
+            }
+            running.store(false, Ordering::Relaxed);
+        });
+    }
+    *echo.lock().unwrap_or_else(|p| p.into_inner()) = Some(EchoSession {
+        topic,
+        buf,
+        stop,
+        running,
+    });
+    Ok(())
+}
+
+/// The last `limit` samples of the running echo session (+ running flag).
+#[tauri::command]
+fn echo_tail(limit: usize, echo: tauri::State<EchoCell>) -> serde_json::Value {
+    let guard = echo.lock().unwrap_or_else(|p| p.into_inner());
+    match guard.as_ref() {
+        Some(sess) => {
+            let b = sess.buf.lock().unwrap_or_else(|p| p.into_inner());
+            let start = b.len().saturating_sub(limit);
+            let samples: Vec<&Sample> = b.iter().skip(start).collect();
+            serde_json::json!({
+                "topic": sess.topic,
+                "running": sess.running.load(Ordering::Relaxed),
+                "total": b.len(),
+                "samples": samples,
+            })
+        }
+        None => serde_json::json!({ "topic": null, "running": false, "total": 0, "samples": [] }),
+    }
+}
+
+/// Stop the running echo session.
+#[tauri::command]
+fn echo_stop(echo: tauri::State<EchoCell>) {
+    stop_echo(echo.inner());
+}
+
 /// App entry — called from `main.rs`.
 pub fn run() {
     let client_cell: ClientCell = Mutex::new(None);
@@ -175,6 +288,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .manage(Mutex::new(AppState::default()))
         .manage(client_cell)
+        .manage(EchoCell::new(None))
         .setup(|app| {
             // Auto-connect to domain 0 (all interfaces) at launch; a failure is
             // surfaced in get_meta().error rather than blocking the window.
@@ -190,7 +304,11 @@ pub fn run() {
             get_meta,
             connect,
             force_ebs,
-            list_interfaces
+            list_interfaces,
+            list_topics,
+            echo_start,
+            echo_tail,
+            echo_stop
         ])
         .run(tauri::generate_context!())
         .expect("error while running ISC MingoROS");

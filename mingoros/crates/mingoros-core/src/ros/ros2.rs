@@ -148,19 +148,23 @@ impl Ros2Client {
         let (pkg, ty) = split_ros_type(type_name)?;
         let q = qos_best_effort();
         Some(match (pkg, ty) {
-            ("std_msgs", "Bool") => {
-                self.subscribe_typed::<msgs::Bool>(topic, pkg, ty, q, |m| format!("data: {}", m.data))
-            }
+            ("std_msgs", "Bool") => self
+                .subscribe_typed::<msgs::Bool>(topic, pkg, ty, q, |m| format!("data: {}", m.data)),
             ("std_msgs", "String") => {
                 self.subscribe_typed::<msgs::StringMsg>(topic, pkg, ty, q, |m| m.data.clone())
             }
-            ("std_msgs", "Float32") => self
-                .subscribe_typed::<msgs::Float32>(topic, pkg, ty, q, |m| format!("data: {}", m.data)),
-            ("std_msgs", "Float64") => self
-                .subscribe_typed::<msgs::Float64>(topic, pkg, ty, q, |m| format!("data: {}", m.data)),
-            ("std_msgs", "Int8") => {
-                self.subscribe_typed::<msgs::Int8>(topic, pkg, ty, q, |m| format!("data: {}", m.data))
+            ("std_msgs", "Float32") => {
+                self.subscribe_typed::<msgs::Float32>(topic, pkg, ty, q, |m| {
+                    format!("data: {}", m.data)
+                })
             }
+            ("std_msgs", "Float64") => {
+                self.subscribe_typed::<msgs::Float64>(topic, pkg, ty, q, |m| {
+                    format!("data: {}", m.data)
+                })
+            }
+            ("std_msgs", "Int8") => self
+                .subscribe_typed::<msgs::Int8>(topic, pkg, ty, q, |m| format!("data: {}", m.data)),
             ("std_msgs", "Int16") => self
                 .subscribe_typed::<msgs::Int16>(topic, pkg, ty, q, |m| format!("data: {}", m.data)),
             ("std_msgs", "Int32") => self
@@ -168,35 +172,61 @@ impl Ros2Client {
             ("std_msgs", "Int64") => self
                 .subscribe_typed::<msgs::Int64>(topic, pkg, ty, q, |m| format!("data: {}", m.data)),
             // Byte/Char are single-octet, same wire form as UInt8.
-            ("std_msgs", "UInt8" | "Byte" | "Char") => self
-                .subscribe_typed::<msgs::UInt8>(topic, pkg, ty, q, |m| format!("data: {}", m.data)),
-            ("std_msgs", "UInt16") => self
-                .subscribe_typed::<msgs::UInt16>(topic, pkg, ty, q, |m| format!("data: {}", m.data)),
-            ("std_msgs", "UInt32") => self
-                .subscribe_typed::<msgs::UInt32>(topic, pkg, ty, q, |m| format!("data: {}", m.data)),
-            ("std_msgs", "UInt64") => self
-                .subscribe_typed::<msgs::UInt64>(topic, pkg, ty, q, |m| format!("data: {}", m.data)),
-            ("std_msgs", "Header") => {
-                self.subscribe_typed::<msgs::Header>(topic, pkg, ty, q, |m| {
-                    format!("frame={} stamp={}.{:09}", m.frame_id, m.stamp.sec, m.stamp.nanosec)
+            ("std_msgs", "UInt8" | "Byte" | "Char") => {
+                self.subscribe_typed::<msgs::UInt8>(topic, pkg, ty, q, |m| {
+                    format!("data: {}", m.data)
                 })
             }
-            ("builtin_interfaces", "Time") => self
-                .subscribe_typed::<msgs::Time>(topic, pkg, ty, q, |m| {
+            ("std_msgs", "UInt16") => {
+                self.subscribe_typed::<msgs::UInt16>(topic, pkg, ty, q, |m| {
+                    format!("data: {}", m.data)
+                })
+            }
+            ("std_msgs", "UInt32") => {
+                self.subscribe_typed::<msgs::UInt32>(topic, pkg, ty, q, |m| {
+                    format!("data: {}", m.data)
+                })
+            }
+            ("std_msgs", "UInt64") => {
+                self.subscribe_typed::<msgs::UInt64>(topic, pkg, ty, q, |m| {
+                    format!("data: {}", m.data)
+                })
+            }
+            ("std_msgs", "Header") => {
+                self.subscribe_typed::<msgs::Header>(topic, pkg, ty, q, |m| {
+                    format!(
+                        "frame={} stamp={}.{:09}",
+                        m.frame_id, m.stamp.sec, m.stamp.nanosec
+                    )
+                })
+            }
+            ("builtin_interfaces", "Time") => {
+                self.subscribe_typed::<msgs::Time>(topic, pkg, ty, q, |m| {
                     format!("{}.{:09}", m.sec, m.nanosec)
-                }),
-            ("geometry_msgs", "Vector3") => self
-                .subscribe_typed::<msgs::Vector3>(topic, pkg, ty, q, |m| {
+                })
+            }
+            ("geometry_msgs", "Vector3") => {
+                self.subscribe_typed::<msgs::Vector3>(topic, pkg, ty, q, |m| {
                     format!("x={:.3} y={:.3} z={:.3}", m.x, m.y, m.z)
-                }),
-            ("geometry_msgs", "Point") => self
-                .subscribe_typed::<msgs::Point>(topic, pkg, ty, q, |m| {
+                })
+            }
+            ("geometry_msgs", "Point") => {
+                self.subscribe_typed::<msgs::Point>(topic, pkg, ty, q, |m| {
                     format!("x={:.3} y={:.3} z={:.3}", m.x, m.y, m.z)
-                }),
-            ("geometry_msgs", "Quaternion") => self
-                .subscribe_typed::<msgs::Quaternion>(topic, pkg, ty, q, |m| {
-                    format!("x={:.3} y={:.3} z={:.3} w={:.3} (yaw={:+.3})", m.x, m.y, m.z, m.w, m.yaw())
-                }),
+                })
+            }
+            ("geometry_msgs", "Quaternion") => {
+                self.subscribe_typed::<msgs::Quaternion>(topic, pkg, ty, q, |m| {
+                    format!(
+                        "x={:.3} y={:.3} z={:.3} w={:.3} (yaw={:+.3})",
+                        m.x,
+                        m.y,
+                        m.z,
+                        m.w,
+                        m.yaw()
+                    )
+                })
+            }
             ("geometry_msgs", "Twist") => {
                 self.subscribe_typed::<msgs::Twist>(topic, pkg, ty, q, |m| {
                     format!(
@@ -217,51 +247,79 @@ impl Ros2Client {
                 self.subscribe_typed::<msgs::Pose>(topic, pkg, ty, q, |m| {
                     format!(
                         "pos[{:.3},{:.3},{:.3}] yaw={:+.3}",
-                        m.position.x, m.position.y, m.position.z, m.orientation.yaw()
+                        m.position.x,
+                        m.position.y,
+                        m.position.z,
+                        m.orientation.yaw()
                     )
                 })
             }
-            ("geometry_msgs", "PoseStamped") => self
-                .subscribe_typed::<msgs::PoseStamped>(topic, pkg, ty, q, |m| {
+            ("geometry_msgs", "PoseStamped") => {
+                self.subscribe_typed::<msgs::PoseStamped>(topic, pkg, ty, q, |m| {
                     format!(
                         "pos[{:.3},{:.3},{:.3}] yaw={:+.3} (frame {})",
-                        m.pose.position.x, m.pose.position.y, m.pose.position.z,
-                        m.pose.orientation.yaw(), m.header.frame_id
+                        m.pose.position.x,
+                        m.pose.position.y,
+                        m.pose.position.z,
+                        m.pose.orientation.yaw(),
+                        m.header.frame_id
                     )
-                }),
-            ("nav_msgs", "Odometry") => self
-                .subscribe_typed::<msgs::OdometryPose>(topic, pkg, ty, q, |m| {
+                })
+            }
+            ("nav_msgs", "Odometry") => {
+                self.subscribe_typed::<msgs::OdometryPose>(topic, pkg, ty, q, |m| {
                     format!(
                         "x={:.2} y={:.2} yaw={:+.3} (frame {})",
-                        m.pose.position.x, m.pose.position.y, m.pose.orientation.yaw(), m.header.frame_id
+                        m.pose.position.x,
+                        m.pose.position.y,
+                        m.pose.orientation.yaw(),
+                        m.header.frame_id
                     )
-                }),
+                })
+            }
             ("sensor_msgs", "Imu") => self.subscribe_typed::<msgs::Imu>(topic, pkg, ty, q, |m| {
                 format!(
                     "accel[{:+.2},{:+.2},{:+.2}] gyro.z={:+.3}",
-                    m.linear_acceleration.x, m.linear_acceleration.y, m.linear_acceleration.z,
+                    m.linear_acceleration.x,
+                    m.linear_acceleration.y,
+                    m.linear_acceleration.z,
                     m.angular_velocity.z
                 )
             }),
-            ("sensor_msgs", "NavSatFix") => self
-                .subscribe_typed::<msgs::NavSatFix>(topic, pkg, ty, q, |m| {
-                    format!("lat={:.7} lon={:.7} alt={:.2}", m.latitude, m.longitude, m.altitude)
-                }),
-            ("sensor_msgs", "Range") => self.subscribe_typed::<msgs::Range>(topic, pkg, ty, q, |m| {
-                format!("range={:.3} m (fov={:.3} rad, {:.2}–{:.2})", m.range, m.field_of_view, m.min_range, m.max_range)
-            }),
-            ("sensor_msgs", "Temperature") => self
-                .subscribe_typed::<msgs::Temperature>(topic, pkg, ty, q, |m| {
+            ("sensor_msgs", "NavSatFix") => {
+                self.subscribe_typed::<msgs::NavSatFix>(topic, pkg, ty, q, |m| {
+                    format!(
+                        "lat={:.7} lon={:.7} alt={:.2}",
+                        m.latitude, m.longitude, m.altitude
+                    )
+                })
+            }
+            ("sensor_msgs", "Range") => {
+                self.subscribe_typed::<msgs::Range>(topic, pkg, ty, q, |m| {
+                    format!(
+                        "range={:.3} m (fov={:.3} rad, {:.2}–{:.2})",
+                        m.range, m.field_of_view, m.min_range, m.max_range
+                    )
+                })
+            }
+            ("sensor_msgs", "Temperature") => {
+                self.subscribe_typed::<msgs::Temperature>(topic, pkg, ty, q, |m| {
                     format!("{:.2} °C", m.temperature)
-                }),
-            ("sensor_msgs", "FluidPressure") => self
-                .subscribe_typed::<msgs::FluidPressure>(topic, pkg, ty, q, |m| {
+                })
+            }
+            ("sensor_msgs", "FluidPressure") => {
+                self.subscribe_typed::<msgs::FluidPressure>(topic, pkg, ty, q, |m| {
                     format!("{:.1} Pa", m.fluid_pressure)
-                }),
-            ("fs_msgs", "ControlCommand") => self
-                .subscribe_typed::<msgs::ControlCommand>(topic, pkg, ty, q, |m| {
-                    format!("throttle={:+.3} steering={:+.3} brake={:.3}", m.throttle, m.steering, m.brake)
-                }),
+                })
+            }
+            ("fs_msgs", "ControlCommand") => {
+                self.subscribe_typed::<msgs::ControlCommand>(topic, pkg, ty, q, |m| {
+                    format!(
+                        "throttle={:+.3} steering={:+.3} brake={:.3}",
+                        m.throttle, m.steering, m.brake
+                    )
+                })
+            }
             _ => return None,
         })
     }

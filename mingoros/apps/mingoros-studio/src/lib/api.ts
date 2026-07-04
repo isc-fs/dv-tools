@@ -159,52 +159,62 @@ export function listTopics(): Promise<TopicInfo[]> {
     return invoke<TopicInfo[]>('list_topics');
 }
 
-// Demo echo: a module-local synthetic stream so the tab works standalone.
-let demoEchoTopic: string | null = null;
-let demoEchoStart = 0;
+// Demo echo: a module-local set of synthetic streams (topic → start time) so
+// the multi-topic tab works standalone.
+const demoEcho = new Map<string, number>();
 
-/** Start echoing `topic` (replaces any running session). */
-export function echoStart(topic: string): Promise<void> {
+/** Add a topic to the echo view (idempotent). */
+export function echoAdd(topic: string): Promise<void> {
     if (IN_BROWSER) {
-        demoEchoTopic = topic;
-        demoEchoStart = Date.now();
+        if (!demoEcho.has(topic)) demoEcho.set(topic, Date.now());
         return Promise.resolve();
     }
-    return invoke<void>('echo_start', { topic });
+    return invoke<void>('echo_add', { topic });
 }
 
-/** The last `limit` samples of the running echo session. */
+/** Remove one topic from the echo view. */
+export function echoRemove(topic: string): Promise<void> {
+    if (IN_BROWSER) {
+        demoEcho.delete(topic);
+        return Promise.resolve();
+    }
+    return invoke<void>('echo_remove', { topic });
+}
+
+/** Stop every topic and clear the buffer. */
+export function echoClear(): Promise<void> {
+    if (IN_BROWSER) {
+        demoEcho.clear();
+        return Promise.resolve();
+    }
+    return invoke<void>('echo_clear');
+}
+
+/** The merged tail across all active echo topics. */
 export function echoTail(limit: number): Promise<EchoTail> {
     if (IN_BROWSER) {
-        if (!demoEchoTopic) {
-            return Promise.resolve({ topic: null, running: false, total: 0, samples: [] });
+        const topics = [...demoEcho.keys()].map((topic) => ({ topic, running: true }));
+        const all: { arr: number; s: EchoTail['samples'][number] }[] = [];
+        for (const [topic, start] of demoEcho) {
+            const decoded = topic !== '/perception/cones';
+            const n = Math.floor((Date.now() - start) / 500); // ~2 Hz each
+            for (let i = 0; i < n; i++) {
+                all.push({
+                    arr: start + i * 500,
+                    s: {
+                        topic,
+                        type_name: 'demo',
+                        seq: i,
+                        t_ms: i * 500,
+                        summary: decoded ? `data: ${topic} #${i}` : '(live — payload not decoded)',
+                    },
+                });
+            }
         }
-        const elapsed = Date.now() - demoEchoStart;
-        const total = Math.floor(elapsed / 500); // ~2 Hz
-        const decoded = demoEchoTopic !== '/perception/cones';
-        const n = Math.min(total, limit);
-        const samples = Array.from({ length: n }, (_, i) => {
-            const seq = total - n + i;
-            return {
-                topic: demoEchoTopic!,
-                type_name: 'demo',
-                seq,
-                t_ms: seq * 500,
-                summary: decoded ? `data: demo sample #${seq}` : '(live — payload not decoded)',
-            };
-        });
-        return Promise.resolve({ topic: demoEchoTopic, running: true, total, samples });
+        all.sort((a, b) => a.arr - b.arr); // interleave by arrival, like the backend
+        return Promise.resolve({ topics, total: all.length, samples: all.slice(-limit).map((x) => x.s) });
     }
     return invoke<EchoTail>('echo_tail', { limit });
-}
-
-/** Stop the running echo session. */
-export function echoStop(): Promise<void> {
-    if (IN_BROWSER) {
-        demoEchoTopic = null;
-        return Promise.resolve();
-    }
-    return invoke<void>('echo_stop');
 }
 
 /** Whether the Connect control is wired to a real backend. */

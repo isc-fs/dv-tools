@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## mingoros-v0.2.0
 
 - **Generic "Topic echo" tab** in the desktop app — echo **any** topic on the
   graph, not just the DV-contract set. Pick from the discovered-topic list or

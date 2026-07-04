@@ -56,10 +56,11 @@ e-stop bar, and a discovered-topic count in the connection bar. A guarded
 **Force EBS** control fires the emergency brake for a car-on-stands checkup
 (behind a confirmation).
 
-A second **Topic echo** tab echoes *any* topic on the graph — pick one from the
-discovered list or type a path. Standard ROS types decode to readable fields;
-anything else still shows liveness (arrival + rate + type). The safety strip
-stays pinned across both tabs.
+A second **Topic echo** tab echoes *any* topics on the graph — add one or several
+from the discovered list or by path, and their messages interleave in one
+colour-coded stream (per-topic rate + count). Standard ROS types decode to
+readable fields; anything else still shows liveness (arrival + rate + type). The
+safety strip stays pinned across both tabs.
 
 ```bash
 cd mingoros/apps/mingoros-studio

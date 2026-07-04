@@ -1,5 +1,12 @@
 # Changelog
 
+## mingoros-v0.3.0
+
+- **Echo multiple topics at once** in the Topic echo tab — add several topics and
+  watch their messages interleave in one colour-coded stream, each tagged by
+  topic with its own live count + rate. Remove topics individually (× on the
+  chip) or clear all. Reconnecting resets the echo session.
+
 ## mingoros-v0.2.0
 
 - **Generic "Topic echo" tab** in the desktop app — echo **any** topic on the

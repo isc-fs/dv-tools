@@ -95,13 +95,19 @@ export interface EchoSample {
     summary: string;
 }
 
-/** Response shape of `echo_tail`: the running session's recent samples. */
-export interface EchoTail {
-    /** Topic being echoed, or null when no session is running. */
-    topic: string | null;
-    /** Whether the background stream is still alive (false once it ends). */
+/** One active echo topic + whether its background stream is still alive. */
+export interface EchoTopicStatus {
+    topic: string;
+    /** False once the stream ends (topic went silent ~20 s, or a reader error). */
     running: boolean;
-    /** Total samples received this session (the ring buffer may hold fewer). */
+}
+
+/** Response shape of `echo_tail`: the merged tail across all active topics. */
+export interface EchoTail {
+    /** The active topics (in add order) + each one's running flag. */
+    topics: EchoTopicStatus[];
+    /** Total samples in the shared ring buffer (may exceed what's returned). */
     total: number;
+    /** Merged samples, oldest→newest; each carries its `.topic`. */
     samples: EchoSample[];
 }

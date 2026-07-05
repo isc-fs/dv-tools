@@ -1,5 +1,24 @@
 # Changelog
 
+## mingoros-v0.4.1
+
+Connection honesty — the board now separates "DDS reachable" from "the car is
+actually delivering data", so the status never claims CONNECTED when nothing is
+coming from the car.
+
+- **Green "connected" only on real data flow** — the LED goes green when a fresh
+  priority-topic sample is actually arriving, not merely when the DDS participant
+  comes up. A discovered topic can be the app's own subscription with no
+  publisher, so the old "connected" lied whenever DDS was up but the car silent.
+- **New amber "no data" state** — a distinct slow-pulse LED for DDS-reachable
+  but no live data, clearly apart from green "connected" and red "offline".
+- **Backend label shows `live/total` priority topics** instead of the misleading
+  discovered-topic count (which also counted the app's own node and its
+  subscriptions).
+- **Pipeline roster gated on live data** — no stage reads "present" until data
+  actually flows; the headline says "DDS is up, but no data is arriving" instead
+  of implying a silent pipeline is there.
+
 ## mingoros-v0.4.0
 
 The backlog release — the full brainstorm set, grounded in the real-bench

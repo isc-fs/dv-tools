@@ -2114,3 +2114,17 @@ tr.stale .tag {
     background: var(--ground-2); padding: 5px 10px; color: var(--ink-dim);
 }
 .db-chip b { color: var(--ink); }
+
+/* QoS-mismatch explainer badge on silent topics (#90) */
+.qos-hint {
+    display: inline-block;
+    margin-left: 8px;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--accent);
+    border: 1px solid var(--accent-dim);
+    border-radius: 5px;
+    padding: 1px 5px;
+    cursor: help;
+    vertical-align: middle;
+}

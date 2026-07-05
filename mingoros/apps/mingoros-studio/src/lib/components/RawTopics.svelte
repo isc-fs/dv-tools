@@ -23,6 +23,27 @@
         val: string;
         age: string;
         tag: string; // '', 'danger', 'stale', 'no sub', 'waiting'
+        hint: string; // QoS-mismatch explainer for silent topics (#90)
+    }
+
+    // Contract QoS per priority topic — a topic on the graph but silent is the
+    // signature QoS-mismatch trap: a reader that requests RELIABLE won't match a
+    // BEST_EFFORT publisher, and one that requests TRANSIENT_LOCAL won't match a
+    // VOLATILE one — either delivers zero samples, silently (#90).
+    const QOS_HINT: Record<string, string> = {
+        '/assi/state': 'BEST_EFFORT',
+        '/as_state': 'BEST_EFFORT',
+        '/dv/status': 'RELIABLE + TRANSIENT_LOCAL (latched)',
+        '/res/status': 'BEST_EFFORT',
+        '/res/go': 'BEST_EFFORT',
+        '/ami/mission': 'BEST_EFFORT',
+        '/debug': 'RELIABLE',
+    };
+    function qosExplainer(topic: string): string {
+        const q = QOS_HINT[topic];
+        return `No data — if the publisher is live, suspect a QoS mismatch.${
+            q ? ` Contract QoS: ${q}.` : ''
+        } A reader that requests RELIABLE won't match a BEST_EFFORT publisher (and TRANSIENT_LOCAL won't match VOLATILE) — zero samples, silently.`;
     }
 
     const rawRows = $derived.by<RawRow[]>(() =>
@@ -31,6 +52,7 @@
             let tag = '';
             let val = '';
             let age = '';
+            let hint = '';
             if (r.state === 'ok') {
                 val = r.value ?? '';
                 age = fmtAge(r.age_ms);
@@ -45,12 +67,14 @@
                 cls = 'muted';
                 val = 'unavailable';
                 tag = 'no sub';
+                hint = qosExplainer(r.topic);
             } else {
                 cls = 'muted';
                 val = 'waiting…';
                 tag = 'waiting';
+                hint = qosExplainer(r.topic);
             }
-            return { key: r.topic, label: r.label, topic: r.topic, cls, val, age, tag };
+            return { key: r.topic, label: r.label, topic: r.topic, cls, val, age, tag, hint };
         }),
     );
 
@@ -83,10 +107,14 @@
             >
             <tbody>
                 {#each rawRows as r (r.key)}
-                    <tr class={r.cls}>
+                    <tr class={r.cls} title={r.hint || undefined}>
                         <td class="lab">{r.label}</td>
                         <td class="top">{r.topic}</td>
-                        <td class="val">{r.val}</td>
+                        <td class="val"
+                            >{r.val}{#if r.hint}<span class="qos-hint" title={r.hint}
+                                    >QoS?</span
+                                >{/if}</td
+                        >
                         <td class="age num"
                             >{r.age}
                             {#if r.tag}<span class="tag">{r.tag}</span>{/if}</td

@@ -1,8 +1,9 @@
 <!--
     Connection bar — brand, ROS-domain + local-interface inputs, Connect
-    button, backend label (with discovered-topic count), and the live LED.
-    When standalone (no Tauri backend) the inputs are disabled and the LED
-    shows "demo · live". A connect error surfaces as a chip in the bar.
+    button, backend label (with the live/total priority-topic count), and the
+    live LED (green connected · amber "no data" · red offline). When standalone
+    (no Tauri backend) the inputs are disabled and the LED shows "demo · live".
+    A connect error surfaces as a chip in the bar.
 -->
 <script lang="ts">
     import { onMount } from 'svelte';
@@ -21,9 +22,15 @@
         connect: (domain: number, iface: string) => Promise<void>;
         /** Stands interlock (#60) — actuation (EBS) is locked until armed. */
         armed: boolean;
+        /** DDS up but no live data — a distinct amber "no data" LED state. */
+        linkWarn: boolean;
+        /** Priority topics actually delivering data (vs total). */
+        liveCount: number;
+        topicTotal: number;
     }
 
-    const { meta, live, liveText, connect, armed }: Props = $props();
+    const { meta, live, liveText, connect, armed, linkWarn, liveCount, topicTotal }: Props =
+        $props();
 
     const tauri = isTauri();
 
@@ -62,7 +69,9 @@
         let s = meta.backend || '—';
         if (meta.domain != null) s += ' · dom ' + meta.domain;
         if (meta.iface) s += ' · ' + meta.iface;
-        if (meta.discovered != null) s += ' · ' + meta.discovered + ' topics';
+        // Data flow, not discovery: a discovered-topic count is misleading (it
+        // includes the app's own node), so show priority topics actually live.
+        if (topicTotal > 0) s += ' · ' + liveCount + '/' + topicTotal + ' live';
         return s;
     });
 
@@ -170,7 +179,7 @@
     <EbsControl {armed} />
     <SteeringTest {armed} />
     <div class="link"><span>backend</span> <b>{backendLabel}</b></div>
-    <div class="live" class:on={live} class:off={!live}>
+    <div class="live" class:on={live} class:warn={linkWarn} class:off={!live && !linkWarn}>
         <span class="led"></span><span>{liveText}</span>
     </div>
 </header>

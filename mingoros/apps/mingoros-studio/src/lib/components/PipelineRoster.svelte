@@ -13,6 +13,14 @@
     import type { TopicInfo } from '../types';
     import { listTopics } from '../api';
 
+    interface Props {
+        /** Live data actually arriving from the car. A discovered topic can be
+         *  just the app's own subscription, so without data the "present" stages
+         *  would be a false positive — gate on this. */
+        receiving: boolean;
+    }
+    const { receiving }: Props = $props();
+
     const POLL_MS = 1500; // topic membership changes slowly
 
     // The uDV / safety surface the micro-ROS agent bridges (contract topics).
@@ -39,8 +47,10 @@
     let topics = $state<TopicInfo[]>([]);
     let reachable = $state<boolean>(true);
 
+    // Without live data, a discovered topic is just the app's own subscription
+    // (no publisher) — so classify nothing as "present" until data flows.
     const names = $derived(
-        topics.map((t) => t.name).filter((n) => n && !BUILTIN.test(n)),
+        receiving ? topics.map((t) => t.name).filter((n) => n && !BUILTIN.test(n)) : [],
     );
     const udvFound = $derived(names.filter((n) => UDV_TOPICS.has(n)));
     const pipelineNames = $derived(names.filter((n) => !UDV_TOPICS.has(n)));
@@ -54,19 +64,18 @@
     const upCount = $derived(stages.filter((s) => s.present).length);
 
     const headline = $derived.by(() => {
-        if (!reachable) return 'No topics on the graph — is the DV PC reachable / the link up?';
-        if (!udvFound.length && !pipelineUp)
-            return 'No topics on the graph — is the DV PC reachable / the link up?';
+        if (!reachable) return 'DDS query failed — is the DV PC reachable / the link up?';
+        // Discovery can list topics that are only the app's own subscriptions
+        // (no publisher). Until data actually flows, say so plainly instead of
+        // implying the pipeline is present.
+        if (!receiving)
+            return 'DDS is up, but no data is arriving — link down, or the pipeline / uDV isn’t running.';
         if (!pipelineUp)
             return 'DV pipeline NOT launched — only the uDV agent is bridging.';
         return `DV pipeline up — ${upCount}/${stages.length} stages publishing.`;
     });
     const headlineCls = $derived(
-        !reachable || (!udvFound.length && !pipelineUp)
-            ? 'bad'
-            : !pipelineUp
-              ? 'warn'
-              : 'ok',
+        !reachable || !receiving ? 'bad' : !pipelineUp ? 'warn' : 'ok',
     );
 
     async function refresh(): Promise<void> {

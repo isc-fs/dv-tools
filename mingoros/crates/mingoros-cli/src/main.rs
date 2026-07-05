@@ -143,6 +143,20 @@ enum Cmd {
         spec: String,
     },
 
+    /// Capture a topic's decoded (dv_contract-typed) samples to a columnar CSV
+    /// for analysis — import straight into pandas / DuckDB (and `COPY … TO
+    /// 'x.parquet'` for Parquet). Needs `--backend ros2` for live data.
+    Export {
+        /// Topic to capture, e.g. /debug
+        topic: String,
+        /// Output CSV path.
+        #[arg(long, default_value = "mingoros_export.csv")]
+        out: String,
+        /// Stop after this many rows (default: run until Ctrl-C).
+        #[arg(long)]
+        count: Option<u64>,
+    },
+
     /// Bridge a uDV onto the ROS graph via `micro_ros_agent` (so `--backend
     /// ros2` can see it). Auto-detects the uDV unless --dev is given.
     Agent {
@@ -235,6 +249,7 @@ fn main() -> Result<()> {
         Cmd::Codegen => cmd_codegen(cli.json),
         Cmd::Doctor => cmd_doctor(conn, cli.json),
         Cmd::Commission { spec } => cmd_commission(conn, cli.json, &spec),
+        Cmd::Export { topic, out, count } => cmd_export(conn, &topic, &out, count),
         Cmd::Agent { dev, baud } => cmd_agent(dev, baud),
         Cmd::Bag { action } => cmd_bag(action, cli.json),
         Cmd::ForceEbs { state, force } => cmd_force_ebs(conn, state, force),
@@ -839,6 +854,48 @@ fn cmd_commission(conn: Conn, json_out: bool, path: &str) -> Result<()> {
     if failed > 0 {
         std::process::exit(1);
     }
+    Ok(())
+}
+
+/// CSV-escape a field: quote + double inner quotes when it has a comma/quote/nl.
+fn csv_field(s: &str) -> String {
+    if s.contains([',', '"', '\n']) {
+        format!("\"{}\"", s.replace('"', "\"\""))
+    } else {
+        s.to_string()
+    }
+}
+
+/// Capture a topic's decoded samples to a columnar CSV (t_ms, seq, topic,
+/// value) — the dv_contract-typed → columnar exporter. Long/tidy format so it
+/// loads straight into pandas / DuckDB (→ Parquet is one DuckDB COPY away).
+fn cmd_export(conn: Conn, topic: &str, out: &str, count: Option<u64>) -> Result<()> {
+    use std::io::Write;
+    let client = make_client(conn)?;
+    let mut stream = client.subscribe_raw(topic)?;
+    let mut f = std::io::BufWriter::new(std::fs::File::create(out)?);
+    writeln!(f, "t_ms,seq,topic,value")?;
+    eprintln!("exporting {topic} → {out} (Ctrl-C to stop)");
+    let mut n = 0u64;
+    while count.is_none_or(|c| n < c) {
+        match stream.next_sample() {
+            Some(s) => {
+                writeln!(
+                    f,
+                    "{},{},{},{}",
+                    s.t_ms,
+                    s.seq,
+                    csv_field(&s.topic),
+                    csv_field(&s.summary)
+                )?;
+                n += 1;
+            }
+            None => break,
+        }
+    }
+    f.flush()?;
+    eprintln!("wrote {n} rows to {out}");
+    eprintln!("→ DuckDB Parquet:  duckdb -c \"COPY (FROM '{out}') TO 'out.parquet'\"");
     Ok(())
 }
 

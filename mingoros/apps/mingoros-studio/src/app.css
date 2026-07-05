@@ -1932,3 +1932,87 @@ tr.stale .tag {
     stroke-linejoin: round;
     stroke-linecap: round;
 }
+
+/* ---- RES-holder fullscreen kill-decision view (#57) ---- */
+.resview-btn {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 35;
+    appearance: none;
+    border: 1px solid var(--line-2);
+    border-radius: 10px;
+    background: var(--panel-2);
+    color: var(--ink-dim);
+    font: 700 12px/1 var(--sans);
+    letter-spacing: 0.06em;
+    padding: 11px 15px;
+    cursor: pointer;
+    opacity: 0.72;
+}
+.resview-btn:hover {
+    opacity: 1;
+    color: var(--ink);
+}
+.killview {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2.2vh;
+    text-align: center;
+    cursor: pointer;
+    user-select: none;
+    background: var(--ground);
+}
+.killview.kv-fault {
+    background: var(--no-bg);
+}
+.killview.kv-go {
+    background: var(--go-bg);
+}
+.killview.kv-hold {
+    background: var(--hold-bg);
+}
+.killview.kv-standby {
+    background: var(--ground-2);
+}
+.kv-word {
+    font-weight: 800;
+    font-size: clamp(4rem, 20vw, 22rem);
+    line-height: 0.9;
+    letter-spacing: -0.02em;
+}
+.kv-fault .kv-word {
+    color: var(--no);
+    animation: linklostpulse 1s steps(1) infinite;
+}
+.kv-go .kv-word {
+    color: var(--go);
+}
+.kv-hold .kv-word {
+    color: var(--hold);
+}
+.kv-standby .kv-word {
+    color: var(--ink-dim);
+}
+.kv-as {
+    font-family: var(--mono);
+    font-size: clamp(1.5rem, 5vw, 4rem);
+    font-weight: 700;
+    color: var(--ink);
+}
+.kv-sub {
+    font-size: clamp(1rem, 2.6vw, 2rem);
+    color: var(--ink-dim);
+    max-width: 82vw;
+}
+.kv-exit {
+    position: fixed;
+    bottom: 22px;
+    font-size: 13px;
+    color: var(--ink-faint);
+}

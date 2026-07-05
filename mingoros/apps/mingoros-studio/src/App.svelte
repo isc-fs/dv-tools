@@ -31,16 +31,16 @@
     import AppBar from './lib/components/AppBar.svelte';
     import UpdateBanner from './lib/components/UpdateBanner.svelte';
     import TabBar, { type TabId } from './lib/components/TabBar.svelte';
-    import StatusBanner from './lib/components/StatusBanner.svelte';
     import StateHero from './lib/components/StateHero.svelte';
     import FactCards from './lib/components/FactCards.svelte';
     import ResBar from './lib/components/ResBar.svelte';
     import Checklist from './lib/components/Checklist.svelte';
-    import RawTopics from './lib/components/RawTopics.svelte';
     import EchoViewer from './lib/components/EchoViewer.svelte';
     import PipelineRoster from './lib/components/PipelineRoster.svelte';
     import KillView from './lib/components/KillView.svelte';
     import SessionRecorder from './lib/components/SessionRecorder.svelte';
+    import Details from './lib/components/Details.svelte';
+    import { recorder } from './lib/recorderStore.svelte';
 
     const POLL_MS = 250;
 
@@ -94,6 +94,15 @@
 
     const overallTag = $derived(agg.okCount + '/' + topics.length + ' topics live');
 
+    // Overall-state word + one-liner for the verdict-band header (folds in the
+    // old StatusBanner, which "reads first" ahead of the rotated stamp).
+    const OVERALL_COPY: Record<OverallState, { h: string; d: string }> = {
+        fault: { h: 'FAULT', d: 'Active safety fault — the car must not move.' },
+        hold: { h: 'STALE HEARTBEAT', d: 'A live topic went silent past the watchdog.' },
+        go: { h: 'NOMINAL', d: 'All monitored safety signals healthy and fresh.' },
+        standby: { h: 'WAITING FOR DATA…', d: 'No topics received yet.' },
+    };
+
     const verdict = $derived(
         deriveVerdict(topics, signals, byTopic, meta.watchdog_s ?? 1.5),
     );
@@ -108,6 +117,7 @@
             ? { state: 'fault', reason: 'LINK LOST — the bound interface is gone; readings are not live' }
             : verdict,
     );
+    const overallCopy = $derived(OVERALL_COPY[effState]);
 
     // uDV → micro_ros_agent → DDS link-health verdict (#61): the uDV's heartbeat
     // topics (/debug, /assi/state) arriving fresh means the whole chain is
@@ -143,6 +153,13 @@
     // Keep the full-viewport red ambient wash in sync with FAULT.
     $effect(() => {
         document.body.classList.toggle('fault', effState === 'fault');
+    });
+
+    // Feed the session recorder every poll so it captures AS/verdict
+    // transitions no matter which tab is showing (the record toggle lives on
+    // the board, the debrief on Details — capture must never pause).
+    $effect(() => {
+        recorder.observe(asWord, effVerdict.state);
     });
 
     // ---- Poll loop ----
@@ -234,51 +251,63 @@
     <TabBar active={tab} onSelect={(t) => (tab = t)} />
 
     {#if tab === 'board'}
-        <StatusBanner state={effState} tag={overallTag} />
+        <!-- Single-viewport board: a full-width verdict band (TIER 1) over a
+             3-column gauge deck (TIER 2) whose height is its tallest column. -->
+        <div class="board">
+            <div class="verdict-band">
+                <div class="band-head band-{effState}">
+                    <span class="beacon"></span>
+                    <span class="bh-word">{overallCopy.h}</span>
+                    <span class="bh-desc">{overallCopy.d}</span>
+                    <span class="otag">{overallTag}</span>
+                    <div class="udv-link udv-{udvLink.state}" title={udvLink.detail}>
+                        <span class="udv-dot"></span>
+                        <span class="udv-label">uDV LINK</span>
+                        <span class="udv-state"
+                            >{udvLink.state === 'ok'
+                                ? 'live'
+                                : udvLink.state === 'stale'
+                                  ? 'STALE'
+                                  : 'DOWN'}</span
+                        >
+                        <span class="udv-detail">{udvLink.detail}</span>
+                    </div>
+                </div>
 
-        <PipelineRoster {receiving} />
+                <StateHero
+                    state={effVerdict.state}
+                    asRow={byTopic['/assi/state']}
+                    reason={effVerdict.reason}
+                />
+            </div>
 
-        <div class="udv-link udv-{udvLink.state}" title={udvLink.detail}>
-            <span class="udv-dot"></span>
-            <span class="udv-label">uDV LINK</span>
-            <span class="udv-state"
-                >{udvLink.state === 'ok'
-                    ? 'live'
-                    : udvLink.state === 'stale'
-                      ? 'STALE'
-                      : 'DOWN'}</span
-            >
-            <span class="udv-detail">{udvLink.detail}</span>
+            <div class="deck">
+                <div class="safety">
+                    <Checklist
+                        title="Safety chain / AS arming"
+                        names={safetyNames}
+                        map={signalMap}
+                        waiting={checklistWaiting}
+                    />
+                </div>
+                <div class="drive">
+                    <Checklist
+                        title="Drive readiness"
+                        names={DRIVE_ORDER}
+                        map={signalMap}
+                        waiting={checklistWaiting}
+                    />
+                </div>
+                <div class="gauges">
+                    <ResBar {byTopic} />
+                    <FactCards {byTopic} />
+                    <PipelineRoster {receiving} />
+                    <SessionRecorder />
+                </div>
+            </div>
         </div>
-
-        <StateHero
-            state={effVerdict.state}
-            asRow={byTopic['/assi/state']}
-            reason={effVerdict.reason}
-        />
-
-        <FactCards {byTopic} />
-
-        <ResBar {byTopic} />
-
-        <section class="lists">
-            <Checklist
-                title="Safety chain / AS arming"
-                names={safetyNames}
-                map={signalMap}
-                waiting={checklistWaiting}
-            />
-            <Checklist
-                title="Drive readiness"
-                names={DRIVE_ORDER}
-                map={signalMap}
-                waiting={checklistWaiting}
-            />
-        </section>
-
-        <RawTopics rows={topics} {meta} />
-
-        <SessionRecorder asWord={asWord} verdictState={effVerdict.state} />
+    {:else if tab === 'details'}
+        <Details rows={topics} {meta} />
     {:else}
         <EchoViewer live={isTauri()} watchdogS={meta.watchdog_s ?? 1.5} />
     {/if}

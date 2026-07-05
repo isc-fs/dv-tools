@@ -122,6 +122,13 @@ fn get_state(state: tauri::State<Shared>) -> serde_json::Value {
 #[tauri::command]
 fn get_meta(state: tauri::State<Shared>) -> serde_json::Value {
     let s = state.lock().unwrap_or_else(|p| p.into_inner());
+    // If DDS is bound to a specific interface (the direct-cable link) and that
+    // NIC has vanished (adapter/cable unplugged), the link is silently dead —
+    // surface it loudly. No specific iface (bound to all) → nothing to watch.
+    let link_lost = s
+        .iface
+        .map(|ip| !mingoros_core::net::ip_present(ip))
+        .unwrap_or(false);
     serde_json::json!({
         "backend": "ros2",
         "domain": s.domain,
@@ -129,6 +136,7 @@ fn get_meta(state: tauri::State<Shared>) -> serde_json::Value {
         "discovered": s.discovered,
         "connected": s.connected,
         "error": s.error,
+        "link_lost": link_lost,
         "watchdog_s": mingoros_core::dv_contract::STALENESS_WATCHDOG_S,
     })
 }

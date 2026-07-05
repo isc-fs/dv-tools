@@ -39,6 +39,9 @@ export interface Meta {
     discovered?: number;
     connected?: boolean;
     error?: string | null;
+    /** True when DDS is bound to a specific interface that has since vanished
+     *  (cable/adapter unplugged) — a silent link loss. */
+    link_lost?: boolean;
     watchdog_s?: number;
 }
 

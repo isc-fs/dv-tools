@@ -1917,3 +1917,18 @@ tr.stale .tag {
     color: var(--ink-dim);
     font-size: 11px;
 }
+
+/* inline numeric sparkline in the echo chip (#88) */
+.echo-spark {
+    width: 44px;
+    height: 14px;
+    display: inline-block;
+    vertical-align: middle;
+    opacity: 0.9;
+}
+.echo-spark path {
+    fill: none;
+    stroke-width: 1.3;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}

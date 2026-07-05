@@ -90,6 +90,17 @@
         deriveVerdict(topics, signals, byTopic, meta.watchdog_s ?? 1.5),
     );
 
+    // A vanished bound interface (link_lost, #86) is a hard fault for the whole
+    // verdict — not just the LED: the readings are no longer live, so the board
+    // must NOT be trusted as READY. Overrides the derived state everywhere (#56).
+    const linkLost = $derived(isTauri() && meta.link_lost === true);
+    const effState = $derived<OverallState>(linkLost ? 'fault' : overallState);
+    const effVerdict = $derived<{ state: OverallState; reason: string }>(
+        linkLost
+            ? { state: 'fault', reason: 'LINK LOST — the bound interface is gone; readings are not live' }
+            : verdict,
+    );
+
     // AS state word for the RES/kill fullscreen — pulled from "(AS_XXX)".
     const asWord = $derived.by<string | null>(() => {
         const r = byTopic['/assi/state'];
@@ -102,7 +113,7 @@
 
     // Keep the full-viewport red ambient wash in sync with FAULT.
     $effect(() => {
-        document.body.classList.toggle('fault', overallState === 'fault');
+        document.body.classList.toggle('fault', effState === 'fault');
     });
 
     // ---- Poll loop ----
@@ -166,14 +177,14 @@
     <TabBar active={tab} onSelect={(t) => (tab = t)} />
 
     {#if tab === 'board'}
-        <StatusBanner state={overallState} tag={overallTag} />
+        <StatusBanner state={effState} tag={overallTag} />
 
         <PipelineRoster />
 
         <StateHero
-            state={verdict.state}
+            state={effVerdict.state}
             asRow={byTopic['/assi/state']}
-            reason={verdict.reason}
+            reason={effVerdict.reason}
         />
 
         <FactCards {byTopic} />
@@ -210,8 +221,8 @@
 
 {#if killView}
     <KillView
-        state={verdict.state}
-        reason={verdict.reason}
+        state={effVerdict.state}
+        reason={effVerdict.reason}
         {asWord}
         linkLost={meta.link_lost ?? false}
         onClose={() => (killView = false)}

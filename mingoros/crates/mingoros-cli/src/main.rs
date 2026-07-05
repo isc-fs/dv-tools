@@ -128,6 +128,12 @@ enum Cmd {
     /// machine dict.
     Codegen,
 
+    /// Lint the live graph against the contract: type drift on a contract
+    /// topic, missing contract topics, and unknown topics. Exits non-zero on a
+    /// TYPE mismatch (usable as a CI gate). Needs `--backend ros2` for a live
+    /// graph.
+    Doctor,
+
     /// Bridge a uDV onto the ROS graph via `micro_ros_agent` (so `--backend
     /// ros2` can see it). Auto-detects the uDV unless --dev is given.
     Agent {
@@ -204,6 +210,7 @@ fn main() -> Result<()> {
         Cmd::Udv => cmd_udv(cli.json),
         Cmd::Ifaces => cmd_ifaces(cli.json),
         Cmd::Codegen => cmd_codegen(cli.json),
+        Cmd::Doctor => cmd_doctor(conn, cli.json),
         Cmd::Agent { dev, baud } => cmd_agent(dev, baud),
         Cmd::Bag { action } => cmd_bag(action),
         Cmd::ForceEbs { state, force } => cmd_force_ebs(conn, state, force),
@@ -619,6 +626,95 @@ fn cmd_codegen(json: bool) -> Result<()> {
     }
 
     print!("{o}");
+    Ok(())
+}
+
+/// Lint the live graph against the contract — type drift, missing contract
+/// topics, unknown topics. Exits non-zero on a TYPE mismatch (CI gate).
+fn cmd_doctor(conn: Conn, json: bool) -> Result<()> {
+    use mingoros_core::dv_contract as c;
+    let client = make_client(conn)?;
+    let discovered = client.list_topics()?;
+    let by_name: HashMap<&str, &mingoros_core::ros::TopicInfo> =
+        discovered.iter().map(|t| (t.name.as_str(), t)).collect();
+    let known: std::collections::HashSet<&str> = c::KNOWN_TOPICS.iter().map(|s| s.name).collect();
+    let is_builtin = |n: &str| {
+        n.contains("mingoros")
+            || n.contains("parameter_events")
+            || n.contains("rosout")
+            || n.ends_with("/clock")
+    };
+
+    // (severity, topic, detail)
+    let mut rows: Vec<(&'static str, String, String)> = Vec::new();
+    for spec in c::KNOWN_TOPICS {
+        match by_name.get(spec.name) {
+            None => rows.push((
+                "missing",
+                spec.name.to_string(),
+                format!("expected {} — not on the graph", spec.type_name),
+            )),
+            Some(t) if !t.type_name.is_empty() && t.type_name != spec.type_name => rows.push((
+                "type",
+                spec.name.to_string(),
+                format!(
+                    "graph has {}, contract expects {}",
+                    t.type_name, spec.type_name
+                ),
+            )),
+            Some(_) => {}
+        }
+    }
+    for t in &discovered {
+        if !known.contains(t.name.as_str()) && !is_builtin(&t.name) {
+            rows.push((
+                "unknown",
+                t.name.clone(),
+                format!("{} — not in the contract", t.type_name),
+            ));
+        }
+    }
+
+    let count = |s: &str| rows.iter().filter(|(sev, _, _)| *sev == s).count();
+    let type_errs = count("type");
+
+    if json {
+        let findings: Vec<_> = rows
+            .iter()
+            .map(|(s, t, d)| serde_json::json!({ "severity": s, "topic": t, "detail": d }))
+            .collect();
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "discovered": discovered.len(),
+                "type_errors": type_errs,
+                "findings": findings,
+            }))?
+        );
+    } else if rows.is_empty() {
+        println!(
+            "✓ contract clean — {} topics on the graph, no type drift.",
+            discovered.len()
+        );
+    } else {
+        for (sev, topic, detail) in &rows {
+            let mark = match *sev {
+                "type" => "✗ TYPE  ",
+                "missing" => "· missing",
+                _ => "? unknown",
+            };
+            println!("{mark}  {topic}  —  {detail}");
+        }
+        println!(
+            "\n{type_errs} type mismatch(es) · {} missing · {} unknown  ({} topics on graph)",
+            count("missing"),
+            count("unknown"),
+            discovered.len()
+        );
+    }
+    if type_errs > 0 {
+        std::process::exit(1);
+    }
     Ok(())
 }
 

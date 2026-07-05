@@ -37,6 +37,7 @@
     import Checklist from './lib/components/Checklist.svelte';
     import RawTopics from './lib/components/RawTopics.svelte';
     import EchoViewer from './lib/components/EchoViewer.svelte';
+    import PipelineRoster from './lib/components/PipelineRoster.svelte';
 
     const POLL_MS = 250;
 
@@ -156,6 +157,8 @@
 
     {#if tab === 'board'}
         <StatusBanner state={overallState} tag={overallTag} />
+
+        <PipelineRoster />
 
         <StateHero
             state={verdict.state}

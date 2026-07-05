@@ -48,6 +48,9 @@
     let topics = $state<TopicSnapshot[]>([]);
     let meta = $state<Meta>({});
     let live = $state<boolean>(false);
+    // DDS is up but no live data is arriving (the app is only seeing its own
+    // node) — a distinct "no data" state so CONNECTED never lies about the car.
+    let linkWarn = $state<boolean>(false);
     let liveText = $state<string>('connecting');
     let tab = $state<TabId>('board');
     let killView = $state<boolean>(false);
@@ -131,6 +134,12 @@
 
     const checklistWaiting = $derived(signals.length === 0);
 
+    // Are we actually receiving live data from the car? A discovered topic can
+    // just be the app's own subscription (no publisher), so "DDS is up" ≠
+    // "connected". The honest signal is a FRESH priority sample arriving.
+    const freshTopics = $derived(topics.filter((t) => t.state === 'ok' && t.fresh));
+    const receiving = $derived(freshTopics.length > 0);
+
     // Keep the full-viewport red ambient wash in sync with FAULT.
     $effect(() => {
         document.body.classList.toggle('fault', effState === 'fault');
@@ -142,19 +151,25 @@
             const [data, m] = await Promise.all([getState(), getMeta()]);
             if (m && Object.keys(m).length > 0) meta = m;
             topics = data.topics ?? [];
-            // A vanished bound interface (link_lost) is a dead link even though
-            // the client object still says "connected" — treat it as down.
+            // "Connected" must mean the CAR is delivering data, not just that
+            // the DDS participant came up. `up` = DDS reachable; `recv` = a
+            // fresh priority sample is actually arriving.
             const up = isTauri() ? meta.connected !== false && !meta.link_lost : true;
-            live = up;
-            liveText = isTauri()
-                ? meta.link_lost
-                    ? 'link lost'
-                    : up
+            const recv = (data.topics ?? []).some((t) => t.state === 'ok' && t.fresh);
+            live = isTauri() ? up && recv : true;
+            linkWarn = isTauri() && up && !recv && meta.link_lost !== true;
+            liveText = !isTauri()
+                ? 'demo · live'
+                : meta.link_lost
+                  ? 'link lost'
+                  : !up
+                    ? 'offline'
+                    : recv
                       ? 'connected'
-                      : 'offline'
-                : 'demo · live';
+                      : 'no data';
         } catch {
             live = false;
+            linkWarn = false;
             liveText = 'disconnected';
         }
     }
@@ -180,7 +195,16 @@
 
 <div id="ambient" aria-hidden="true"></div>
 
-<AppBar {meta} {live} {liveText} connect={reconnect} armed={standsArmed} />
+<AppBar
+    {meta}
+    {live}
+    {linkWarn}
+    {liveText}
+    connect={reconnect}
+    armed={standsArmed}
+    liveCount={freshTopics.length}
+    topicTotal={topics.length}
+/>
 
 <UpdateBanner />
 
@@ -212,7 +236,7 @@
     {#if tab === 'board'}
         <StatusBanner state={effState} tag={overallTag} />
 
-        <PipelineRoster />
+        <PipelineRoster {receiving} />
 
         <div class="udv-link udv-{udvLink.state}" title={udvLink.detail}>
             <span class="udv-dot"></span>

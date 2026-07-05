@@ -1,5 +1,41 @@
 # Changelog
 
+## mingoros-v0.4.0
+
+The backlog release — the full brainstorm set, grounded in the real-bench
+session. Highlights:
+
+### Board / safety
+- **Pipeline stage-up roster** — classifies live topics into DV stages
+  (uDV/agent · Perception · SLAM · Planning · Control) and calls out
+  "pipeline NOT launched — only the uDV agent is bridging".
+- **Bound-NIC vanish alarm** + **link-loss folds into the verdict** — a
+  silently-dropped interface goes loud (banner + LED) and forces the whole
+  Go/No-Go verdict to FAULT.
+- **uDV LINK health badge** (live / stale / down) from the heartbeat freshness.
+- **RES-holder fullscreen** — a glanceable giant SAFE/HOLD/STOP for kill calls.
+- **Stands interlock** — actuation (EBS + the new steering test) is locked
+  until the operator confirms the car is on stands.
+- **Steering self-test** — the `/activate_steering` counterpart to Force-EBS.
+- **Session recorder + debrief** — records decoded-state transitions → a
+  "what just happened" card.
+
+### Topic echo
+- **Numeric sparklines**, **per-topic rate-health** colouring, **header srcΔ**
+  (source→arrival delay) on Odometry/Imu/PoseStamped, and a **QoS-mismatch
+  explainer** for discovered-but-silent topics.
+
+### CLI
+- `mingoros codegen` (contract → Python/JSON), `doctor` (live contract linter +
+  CI gate), `commission <spec.json>` (declarative pass/fail interlock runner),
+  `bag list` + `bag play --loop/--rate` (bag library + cone-track E2E replay),
+  and `export` (decoded samples → columnar CSV for pandas/DuckDB → Parquet).
+
+### Diagnostics
+- **Force-EBS failure taxonomy** — a timeout resolves to "not advertised"
+  (uDV/agent down) vs "advertised but silent" (mapping/link) instead of an
+  opaque hang.
+
 ## mingoros-v0.3.0
 
 - **Echo multiple topics at once** in the Topic echo tab — add several topics and

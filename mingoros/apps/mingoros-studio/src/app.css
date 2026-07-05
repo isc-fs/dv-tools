@@ -256,9 +256,9 @@ main {
 }
 
 main {
-    max-width: 1180px;
+    max-width: 1240px;
     margin: 0 auto;
-    padding: 18px 22px 56px;
+    padding: 12px 18px 14px;
 }
 
 /* ---- always-visible overall banner (redundant with the stamp, reads first) ---- */
@@ -1220,7 +1220,7 @@ tr.stale .tag {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 7px 20px;
+    padding: 4px 20px;
     font-size: 12px;
     line-height: 1.35;
     color: var(--hold-ink);
@@ -2141,4 +2141,264 @@ tr.stale .tag {
     padding: 1px 5px;
     cursor: help;
     vertical-align: middle;
+}
+
+/* =========================================================================
+   Single-viewport Go/No-Go board (#feat-54): operators want the live state
+   to fill the screen with no scrolling. The board is two tiers — a full-width
+   verdict band and a 3-column gauge deck whose height is its TALLEST column,
+   not the sum of stacked sections. Chrome (topbar/strip/tabbar) sits above.
+   ========================================================================= */
+.board {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 8px;
+    /* Fill the viewport below the pinned chrome so the deck (never the page)
+       absorbs any overflow. Reserve: topbar 53 + slim strip 34 + tabbar 35
+       + main pad 26 + tabbar gap/margin ~18. Tuned against measurement. */
+    height: calc(100vh - 53px - 34px - 35px - 26px - 26px);
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* TIER 1 — verdict band: the StatusBanner word + topics tag + uDV-link badge
+   fold into a slim header strip above the (now full-width) verdict hero. */
+.verdict-band {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    gap: 6px;
+    min-height: 0;
+}
+.verdict-band > .verdict {
+    margin: 0;
+}
+.band-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 3px 14px;
+    min-width: 0;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--panel);
+}
+.band-head .beacon {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex: none;
+    background: var(--ink-faint);
+    transition: background 0.35s, box-shadow 0.35s;
+}
+.band-head .bh-word {
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    white-space: nowrap;
+}
+.band-head .bh-desc {
+    font-size: 11.5px;
+    color: var(--ink-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+.band-head .otag {
+    margin-left: auto;
+    flex: none;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-faint);
+    border: 1px solid var(--line-2);
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: var(--ground-2);
+    white-space: nowrap;
+}
+.band-head .udv-link {
+    margin: 0;
+    flex: none;
+}
+.band-head .udv-link .udv-detail {
+    display: none;
+}
+.band-head.band-go .bh-word {
+    color: var(--go-ink);
+}
+.band-head.band-go .beacon {
+    background: var(--go);
+    box-shadow: 0 0 8px 1px rgba(53, 208, 127, 0.6);
+}
+.band-head.band-hold .bh-word {
+    color: var(--hold-ink);
+}
+.band-head.band-hold .beacon {
+    background: var(--hold);
+    box-shadow: 0 0 8px 1px rgba(240, 180, 40, 0.55);
+}
+.band-head.band-fault .bh-word {
+    color: var(--no-ink);
+}
+.band-head.band-fault .beacon {
+    background: var(--no);
+    box-shadow: 0 0 8px 1px rgba(255, 77, 77, 0.55);
+}
+
+/* TIER 2 — gauge deck: two big checklists (Col A/B) + a narrow gauge stack
+   (Col C). Height = tallest column. Each checklist clips-then-scrolls inside
+   itself so a wrapped row or an extra signal never scrolls the page. */
+.deck {
+    display: grid;
+    grid-template-columns: 1.15fr 1.15fr 0.95fr;
+    gap: 12px;
+    min-height: 0;
+    overflow: hidden;
+}
+.deck > .safety,
+.deck > .drive {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+.deck > .safety > .card,
+.deck > .drive > .card {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+.deck .card {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.deck ul.check {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+}
+.deck ul.check li {
+    padding-top: 7px;
+    padding-bottom: 7px;
+}
+.deck > .gauges {
+    display: grid;
+    grid-template-rows: auto auto auto auto;
+    gap: 10px;
+    align-content: start;
+    min-height: 0;
+}
+.deck .roster,
+.deck .facts,
+.deck .res,
+.deck .recorder {
+    margin: 0;
+}
+
+/* The gauge components are horizontal by nature and balloon in the narrow
+   Col C — compact them so they stack short; the column can still scroll as a
+   last-resort safety valve so a gauge is never clipped off-screen. */
+.deck > .gauges {
+    overflow-y: auto;
+    /* Constrain the single implicit column so wide gauge content (a long
+       mission string, roster pills) shrinks/ellipsises instead of overflowing
+       the narrow track and getting clipped by the deck. */
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+}
+.deck > .gauges > * {
+    min-width: 0;
+    max-width: 100%;
+}
+.deck .facts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.deck .roster-stages {
+    min-width: 0;
+}
+.deck .roster {
+    padding: 9px 12px;
+}
+.deck .roster-head {
+    margin-bottom: 6px;
+    gap: 8px;
+}
+.deck .roster-headline {
+    font-size: 12px;
+}
+.deck .roster-stages {
+    gap: 6px;
+}
+.deck .stage {
+    padding: 3px 8px;
+    font-size: 11px;
+    gap: 6px;
+}
+.deck .facts {
+    gap: 8px;
+}
+.deck .fact {
+    padding: 7px 10px;
+}
+.deck .fact .val {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.deck .res {
+    gap: 12px;
+    padding: 9px 12px;
+}
+.deck .res .ring {
+    width: 30px;
+    height: 30px;
+    border-width: 2px;
+}
+.deck .res .ring i {
+    width: 11px;
+    height: 11px;
+}
+.deck .res .label .name {
+    display: none;
+}
+
+/* Responsive: narrow → single column, the deck (not the page) scrolls; short
+   viewports → deck scrolls; wide → Col C gets a little more breathing room. */
+@media (max-width: 1040px) {
+    .deck {
+        grid-template-columns: 1fr;
+        overflow-y: auto;
+    }
+}
+@media (max-height: 720px) {
+    .deck {
+        overflow-y: auto;
+    }
+}
+@media (min-width: 1500px) {
+    .deck {
+        grid-template-columns: 1.1fr 1.1fr 1fr;
+    }
+}
+
+/* Details tab + recorder toggle/debrief helper bits */
+.details {
+    display: grid;
+    gap: 14px;
+}
+.rec-done {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--go-ink);
+}
+.db-hint {
+    font-size: 12px;
+    color: var(--ink-dim);
+    line-height: 1.45;
+    margin-top: 4px;
+}
+.db-hint b {
+    color: var(--ink);
+}
+.db-empty {
+    opacity: 0.92;
 }

@@ -1795,6 +1795,17 @@ tr.stale .tag {
     font-family: var(--mono);
     color: var(--ink-faint);
 }
+/* rate-health colouring (#89): steady / degrading / stalled */
+.echo-chip-stat.ok {
+    color: var(--go-ink);
+}
+.echo-chip-stat.warn {
+    color: var(--hold-ink);
+}
+.echo-chip-stat.bad {
+    color: var(--no-ink);
+    font-weight: 600;
+}
 .echo-chip-ended {
     font-size: 10px;
     text-transform: uppercase;

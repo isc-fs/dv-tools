@@ -184,6 +184,6 @@
 
         <RawTopics rows={topics} {meta} />
     {:else}
-        <EchoViewer live={isTauri()} />
+        <EchoViewer live={isTauri()} watchdogS={meta.watchdog_s ?? 1.5} />
     {/if}
 </main>

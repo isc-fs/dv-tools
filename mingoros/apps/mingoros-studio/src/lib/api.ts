@@ -128,6 +128,24 @@ export function forceEbs(engage: boolean): Promise<EbsResult> {
 }
 
 /**
+ * Steering self-test (#92) — call the uDV's `/activate_steering` (std_srvs/
+ * SetBool). `engage=true` drives the steering actuator for a car-on-stands
+ * checkup; watch `/steering/feedback` + `/steering_angle` in the echo tab to
+ * confirm it moved. Gated by the stands interlock + a confirmation.
+ */
+export function activateSteering(engage: boolean): Promise<EbsResult> {
+    if (IN_BROWSER) {
+        return Promise.resolve({
+            success: true,
+            message: engage
+                ? 'Steering activated (demo — no backend)'
+                : 'Steering deactivated (demo — no backend)',
+        });
+    }
+    return invoke<EbsResult>('activate_steering', { engage });
+}
+
+/**
  * List the host's network interfaces (for the DDS interface picker — choose the
  * direct-link Ethernet instead of typing its IP). The browser demo returns a
  * couple of plausible entries so the dropdown is populated standalone.

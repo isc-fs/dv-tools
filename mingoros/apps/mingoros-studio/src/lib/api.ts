@@ -92,6 +92,7 @@ export function getMeta(): Promise<Meta> {
             discovered: 7,
             connected: true,
             error: null,
+            link_lost: false,
             watchdog_s: 1.5,
         });
     }
@@ -124,6 +125,24 @@ export function forceEbs(engage: boolean): Promise<EbsResult> {
         });
     }
     return invoke<EbsResult>('force_ebs', { engage });
+}
+
+/**
+ * Steering self-test (#92) — call the uDV's `/activate_steering` (std_srvs/
+ * SetBool). `engage=true` drives the steering actuator for a car-on-stands
+ * checkup; watch `/steering/feedback` + `/steering_angle` in the echo tab to
+ * confirm it moved. Gated by the stands interlock + a confirmation.
+ */
+export function activateSteering(engage: boolean): Promise<EbsResult> {
+    if (IN_BROWSER) {
+        return Promise.resolve({
+            success: true,
+            message: engage
+                ? 'Steering activated (demo — no backend)'
+                : 'Steering deactivated (demo — no backend)',
+        });
+    }
+    return invoke<EbsResult>('activate_steering', { engage });
 }
 
 /**

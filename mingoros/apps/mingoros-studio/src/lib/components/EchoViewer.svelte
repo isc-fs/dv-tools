@@ -13,8 +13,10 @@
 
     interface Props {
         live: boolean;
+        /** Staleness watchdog (s) from the contract — the gap that means "stalled". */
+        watchdogS: number;
     }
-    const { live }: Props = $props();
+    const { live, watchdogS }: Props = $props();
 
     const POLL_MS = 250;
     const LIMIT = 400;
@@ -49,26 +51,87 @@
     });
     const colorOf = (t: string): string => colorMap.get(t) ?? '#8b98ab';
 
-    // Per-topic count + rate over the visible window.
-    const statMap = $derived.by(() => {
+    // Per-topic health: count + recent rate + worst inter-arrival gap, coloured
+    // by steadiness. This is rate-independent (works for a 2 Hz heartbeat and a
+    // 400 Hz feed alike): a stall ≥ the staleness watchdog, or the stream
+    // ending, is BAD; a gap several× the typical one is a WARN (a heartbeat
+    // starting to degrade before a binary watchdog would trip); steady is OK.
+    interface TopicHealth {
+        label: string;
+        cls: 'ok' | 'warn' | 'bad';
+    }
+    const HEALTH_WINDOW = 20; // recent samples → a "current" health read
+
+    const healthMap = $derived.by(() => {
         const g = new Map<string, EchoSample[]>();
         for (const s of samples) {
             const arr = g.get(s.topic);
             if (arr) arr.push(s);
             else g.set(s.topic, [s]);
         }
-        const m = new Map<string, string>();
-        for (const [t, arr] of g) {
-            let label = `${arr.length}`;
+        const runningOf = new Map(active.map((t) => [t.topic, t.running]));
+        const watchdogMs = watchdogS * 1000;
+        const m = new Map<string, TopicHealth>();
+        for (const [t, all] of g) {
+            const arr = all.slice(-HEALTH_WINDOW);
+            const parts: string[] = [String(all.length)];
+            const gaps: number[] = [];
+            for (let i = 1; i < arr.length; i++) gaps.push(arr[i].t_ms - arr[i - 1].t_ms);
             if (arr.length >= 2) {
                 const dt = (arr[arr.length - 1].t_ms - arr[0].t_ms) / 1000;
-                if (dt > 0) label += ` · ${((arr.length - 1) / dt).toFixed(1)} Hz`;
+                if (dt > 0) parts.push(`${((arr.length - 1) / dt).toFixed(1)} Hz`);
             }
-            m.set(t, label);
+            const maxGap = gaps.length ? Math.max(...gaps) : 0;
+            if (maxGap > 0) parts.push(`gap ${(maxGap / 1000).toFixed(2)}s`);
+
+            let cls: 'ok' | 'warn' | 'bad' = 'ok';
+            const running = runningOf.get(t) ?? true;
+            if (!running || maxGap > watchdogMs) {
+                cls = 'bad';
+            } else if (gaps.length >= 4) {
+                const sorted = [...gaps].sort((a, b) => a - b);
+                const median = sorted[Math.floor(sorted.length / 2)];
+                if (median > 0 && maxGap > 3 * median) cls = 'warn';
+            }
+            m.set(t, { label: parts.join(' · '), cls });
         }
         return m;
     });
-    const statOf = (t: string): string => statMap.get(t) ?? '0';
+    const healthOf = (t: string): TopicHealth => healthMap.get(t) ?? { label: '0', cls: 'ok' };
+
+    // Per-topic numeric series for the inline sparkline (#88). Pull the first
+    // number out of scalar/vector decodes (`data: 3`, `x=1.2`, `linear[...]`)
+    // and skip pure-string topics like /debug (no `data:`/`=`/`[`).
+    const SPARK_WINDOW = 48;
+    const seriesMap = $derived.by(() => {
+        const m = new Map<string, number[]>();
+        for (const s of samples) {
+            if (!/^data:|=|\[/.test(s.summary)) continue;
+            const num = s.summary.match(/-?\d+(\.\d+)?/);
+            if (!num) continue;
+            const v = parseFloat(num[0]);
+            if (!Number.isFinite(v)) continue;
+            const arr = m.get(s.topic);
+            if (arr) arr.push(v);
+            else m.set(s.topic, [v]);
+        }
+        for (const [k, arr] of m) if (arr.length > SPARK_WINDOW) m.set(k, arr.slice(-SPARK_WINDOW));
+        return m;
+    });
+    // A polyline path for `vals` normalised into a w×h box (flat line if constant).
+    function sparkPath(vals: number[], w: number, h: number): string {
+        if (vals.length < 2) return '';
+        const min = Math.min(...vals);
+        const range = Math.max(...vals) - min || 1;
+        const dx = w / (vals.length - 1);
+        return vals
+            .map(
+                (v, i) =>
+                    `${i === 0 ? 'M' : 'L'}${(i * dx).toFixed(1)},${(h - ((v - min) / range) * h).toFixed(1)}`,
+            )
+            .join(' ');
+    }
+    const sparkOf = (t: string): number[] => seriesMap.get(t) ?? [];
 
     onMount(() => {
         void refreshTopics();
@@ -174,10 +237,26 @@
     {#if active.length}
         <div class="echo-chips">
             {#each active as t (t.topic)}
+                {@const h = healthOf(t.topic)}
+                {@const spark = sparkOf(t.topic)}
                 <span class="echo-chip" style="--c:{colorOf(t.topic)}">
                     <span class="echo-chip-dot"></span>
                     <span class="echo-chip-name">{t.topic}</span>
-                    <span class="echo-chip-stat">{statOf(t.topic)}</span>
+                    <span
+                        class="echo-chip-stat {h.cls}"
+                        title="count · recent rate · worst recent inter-arrival gap (red = stalled ≥ {watchdogS}s or stream ended; amber = gap several× the typical one)"
+                        >{h.label}</span
+                    >
+                    {#if spark.length >= 2}
+                        <svg
+                            class="echo-spark"
+                            viewBox="0 0 44 14"
+                            preserveAspectRatio="none"
+                            aria-label="last {spark.length} values"
+                        >
+                            <path d={sparkPath(spark, 44, 14)} style="stroke:{colorOf(t.topic)}" />
+                        </svg>
+                    {/if}
                     {#if !t.running}<span class="echo-chip-ended">ended</span>{/if}
                     <button
                         type="button"

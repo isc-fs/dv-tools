@@ -9,6 +9,7 @@
     import type { Meta, NetInterface } from '../types';
     import { isTauri, listInterfaces } from '../api';
     import EbsControl from './EbsControl.svelte';
+    import SteeringTest from './SteeringTest.svelte';
 
     interface Props {
         meta: Meta;
@@ -18,9 +19,11 @@
         liveText: string;
         /** Reconnect callback — validated domain id + optional interface IP. */
         connect: (domain: number, iface: string) => Promise<void>;
+        /** Stands interlock (#60) — actuation (EBS) is locked until armed. */
+        armed: boolean;
     }
 
-    const { meta, live, liveText, connect }: Props = $props();
+    const { meta, live, liveText, connect, armed }: Props = $props();
 
     const tauri = isTauri();
 
@@ -101,6 +104,15 @@
         <span class="sub">Go / No-Go board</span>
     </div>
     <div class="grow"></div>
+    {#if meta.link_lost}
+        <div
+            class="link-lost"
+            role="alert"
+            title="The interface DDS was bound to has disappeared — cable/adapter unplugged, or the link dropped."
+        >
+            ⚠ LINK LOST — {meta.iface ?? 'interface'} gone
+        </div>
+    {/if}
     {#if meta.error}
         <div class="conn-err" title={meta.error}>⚠ {meta.error}</div>
     {/if}
@@ -155,7 +167,8 @@
             >
         {/if}
     </div>
-    <EbsControl />
+    <EbsControl {armed} />
+    <SteeringTest {armed} />
     <div class="link"><span>backend</span> <b>{backendLabel}</b></div>
     <div class="live" class:on={live} class:off={!live}>
         <span class="led"></span><span>{liveText}</span>

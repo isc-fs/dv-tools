@@ -22,6 +22,7 @@
         SAFETY_ORDER,
         aggregate,
         deriveVerdict,
+        fmtAge,
         indexByTopic,
         overallStatus,
         parseDebug,
@@ -37,6 +38,9 @@
     import Checklist from './lib/components/Checklist.svelte';
     import RawTopics from './lib/components/RawTopics.svelte';
     import EchoViewer from './lib/components/EchoViewer.svelte';
+    import PipelineRoster from './lib/components/PipelineRoster.svelte';
+    import KillView from './lib/components/KillView.svelte';
+    import SessionRecorder from './lib/components/SessionRecorder.svelte';
 
     const POLL_MS = 250;
 
@@ -46,6 +50,10 @@
     let live = $state<boolean>(false);
     let liveText = $state<string>('connecting');
     let tab = $state<TabId>('board');
+    let killView = $state<boolean>(false);
+    // Stands interlock (#60): actuation (EBS + future self-tests) is LOCKED
+    // until the operator explicitly confirms the car is on stands. Default off.
+    let standsArmed = $state<boolean>(false);
 
     // ---- Derivations (all pure, from lib/model) ----
     const byTopic = $derived(indexByTopic(topics));
@@ -87,11 +95,45 @@
         deriveVerdict(topics, signals, byTopic, meta.watchdog_s ?? 1.5),
     );
 
+    // A vanished bound interface (link_lost, #86) is a hard fault for the whole
+    // verdict — not just the LED: the readings are no longer live, so the board
+    // must NOT be trusted as READY. Overrides the derived state everywhere (#56).
+    const linkLost = $derived(isTauri() && meta.link_lost === true);
+    const effState = $derived<OverallState>(linkLost ? 'fault' : overallState);
+    const effVerdict = $derived<{ state: OverallState; reason: string }>(
+        linkLost
+            ? { state: 'fault', reason: 'LINK LOST — the bound interface is gone; readings are not live' }
+            : verdict,
+    );
+
+    // uDV → micro_ros_agent → DDS link-health verdict (#61): the uDV's heartbeat
+    // topics (/debug, /assi/state) arriving fresh means the whole chain is
+    // alive (uDV powered → agent bridging → DDS delivering). Stale = a hiccup;
+    // absent = the chain is down (agent off / uDV off / wrong domain).
+    const udvLink = $derived.by<{ state: 'ok' | 'stale' | 'down'; detail: string }>(() => {
+        const beat = byTopic['/debug'] ?? byTopic['/assi/state'];
+        if (!beat || beat.state !== 'ok') {
+            return { state: 'down', detail: 'no uDV heartbeat — agent off / uDV off / wrong domain' };
+        }
+        if (!beat.fresh) {
+            return { state: 'stale', detail: `heartbeat stale (${fmtAge(beat.age_ms)}) — agent/uDV hiccup` };
+        }
+        return { state: 'ok', detail: `heartbeat live · ${fmtAge(beat.age_ms)}` };
+    });
+
+    // AS state word for the RES/kill fullscreen — pulled from "(AS_XXX)".
+    const asWord = $derived.by<string | null>(() => {
+        const r = byTopic['/assi/state'];
+        if (!r || r.state !== 'ok' || !r.value) return null;
+        const m = r.value.match(/\(([^)]+)\)/);
+        return m ? m[1] : null;
+    });
+
     const checklistWaiting = $derived(signals.length === 0);
 
     // Keep the full-viewport red ambient wash in sync with FAULT.
     $effect(() => {
-        document.body.classList.toggle('fault', overallState === 'fault');
+        document.body.classList.toggle('fault', effState === 'fault');
     });
 
     // ---- Poll loop ----
@@ -100,12 +142,16 @@
             const [data, m] = await Promise.all([getState(), getMeta()]);
             if (m && Object.keys(m).length > 0) meta = m;
             topics = data.topics ?? [];
-            const up = isTauri() ? meta.connected !== false : true;
+            // A vanished bound interface (link_lost) is a dead link even though
+            // the client object still says "connected" — treat it as down.
+            const up = isTauri() ? meta.connected !== false && !meta.link_lost : true;
             live = up;
             liveText = isTauri()
-                ? up
-                    ? 'connected'
-                    : 'offline'
+                ? meta.link_lost
+                    ? 'link lost'
+                    : up
+                      ? 'connected'
+                      : 'offline'
                 : 'demo · live';
         } catch {
             live = false;
@@ -134,7 +180,7 @@
 
 <div id="ambient" aria-hidden="true"></div>
 
-<AppBar {meta} {live} {liveText} connect={reconnect} />
+<AppBar {meta} {live} {liveText} connect={reconnect} armed={standsArmed} />
 
 <UpdateBanner />
 
@@ -145,18 +191,46 @@
         actuation (EBS, control/mission topics) — a stray command can move the car.
         Never use it with the wheels able to touch down.</span
     >
+    <span class="grow"></span>
+    <button
+        type="button"
+        class="stands-interlock"
+        class:armed={standsArmed}
+        aria-pressed={standsArmed}
+        onclick={() => (standsArmed = !standsArmed)}
+        title={standsArmed
+            ? 'Actuation ARMED — click to lock. Only while the car is genuinely on stands.'
+            : 'Actuation LOCKED. Click to arm — confirms the car is on stands, wheels off the ground.'}
+    >
+        {standsArmed ? '🔓 ON STANDS · actuation armed' : '🔒 actuation locked — arm (on stands)'}
+    </button>
 </div>
 
 <main>
     <TabBar active={tab} onSelect={(t) => (tab = t)} />
 
     {#if tab === 'board'}
-        <StatusBanner state={overallState} tag={overallTag} />
+        <StatusBanner state={effState} tag={overallTag} />
+
+        <PipelineRoster />
+
+        <div class="udv-link udv-{udvLink.state}" title={udvLink.detail}>
+            <span class="udv-dot"></span>
+            <span class="udv-label">uDV LINK</span>
+            <span class="udv-state"
+                >{udvLink.state === 'ok'
+                    ? 'live'
+                    : udvLink.state === 'stale'
+                      ? 'STALE'
+                      : 'DOWN'}</span
+            >
+            <span class="udv-detail">{udvLink.detail}</span>
+        </div>
 
         <StateHero
-            state={verdict.state}
+            state={effVerdict.state}
             asRow={byTopic['/assi/state']}
-            reason={verdict.reason}
+            reason={effVerdict.reason}
         />
 
         <FactCards {byTopic} />
@@ -179,7 +253,26 @@
         </section>
 
         <RawTopics rows={topics} {meta} />
+
+        <SessionRecorder asWord={asWord} verdictState={effVerdict.state} />
     {:else}
-        <EchoViewer live={isTauri()} />
+        <EchoViewer live={isTauri()} watchdogS={meta.watchdog_s ?? 1.5} />
     {/if}
 </main>
+
+<button
+    type="button"
+    class="resview-btn"
+    title="Fullscreen RES / kill-decision view — glanceable safety verdict"
+    onclick={() => (killView = true)}>RES VIEW</button
+>
+
+{#if killView}
+    <KillView
+        state={effVerdict.state}
+        reason={effVerdict.reason}
+        {asWord}
+        linkLost={meta.link_lost ?? false}
+        onClose={() => (killView = false)}
+    />
+{/if}

@@ -122,6 +122,13 @@ fn get_state(state: tauri::State<Shared>) -> serde_json::Value {
 #[tauri::command]
 fn get_meta(state: tauri::State<Shared>) -> serde_json::Value {
     let s = state.lock().unwrap_or_else(|p| p.into_inner());
+    // If DDS is bound to a specific interface (the direct-cable link) and that
+    // NIC has vanished (adapter/cable unplugged), the link is silently dead —
+    // surface it loudly. No specific iface (bound to all) → nothing to watch.
+    let link_lost = s
+        .iface
+        .map(|ip| !mingoros_core::net::ip_present(ip))
+        .unwrap_or(false);
     serde_json::json!({
         "backend": "ros2",
         "domain": s.domain,
@@ -129,6 +136,7 @@ fn get_meta(state: tauri::State<Shared>) -> serde_json::Value {
         "discovered": s.discovered,
         "connected": s.connected,
         "error": s.error,
+        "link_lost": link_lost,
         "watchdog_s": mingoros_core::dv_contract::STALENESS_WATCHDOG_S,
     })
 }
@@ -170,6 +178,31 @@ fn force_ebs(engage: bool, client: tauri::State<ClientCell>) -> Result<serde_jso
         .ok_or_else(|| "not connected to a ROS graph yet".to_string())?;
     let out = c
         .call_set_bool(mingoros_core::dv_contract::SERVICE_FORCE_EBS, engage)
+        .map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({ "success": out.success, "message": out.message }))
+}
+
+/// Call the uDV's `/activate_steering` service (std_srvs/SetBool) — the steering
+/// counterpart to Force-EBS (#92). `on` engages the steering actuator for a
+/// car-on-stands self-test; watch `/steering/feedback` + `/steering_angle` (in
+/// the echo tab) to confirm it moved. Gated by the stands interlock + a
+/// confirmation in the UI. Locks the client cell only.
+#[tauri::command]
+fn activate_steering(
+    engage: bool,
+    client: tauri::State<ClientCell>,
+) -> Result<serde_json::Value, String> {
+    let guard = client
+        .lock()
+        .map_err(|_| "client state lock poisoned — reconnect and retry".to_string())?;
+    let c = guard
+        .as_ref()
+        .ok_or_else(|| "not connected to a ROS graph yet".to_string())?;
+    let out = c
+        .call_set_bool(
+            mingoros_core::dv_contract::SERVICE_ACTIVATE_STEERING,
+            engage,
+        )
         .map_err(|e| e.to_string())?;
     Ok(serde_json::json!({ "success": out.success, "message": out.message }))
 }
@@ -357,6 +390,7 @@ pub fn run() {
             get_meta,
             connect,
             force_ebs,
+            activate_steering,
             list_interfaces,
             list_topics,
             echo_add,

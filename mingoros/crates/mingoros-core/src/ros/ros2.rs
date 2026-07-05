@@ -127,6 +127,42 @@ impl Ros2Client {
         Ok(Box::new(Ros2Stream {
             sub,
             fmt,
+            stamp: None,
+            topic: topic.to_string(),
+            type_name: format!("{pkg}/msg/{ty}"),
+            seq: 0,
+            start: Instant::now(),
+        }))
+    }
+
+    /// Like [`subscribe_typed`], but for header-carrying messages: `stamp`
+    /// extracts the source timestamp (Unix ms) so each sample also reports the
+    /// source→arrival delay (#91).
+    fn subscribe_typed_stamped<T>(
+        &self,
+        topic: &str,
+        pkg: &str,
+        ty: &str,
+        qos: QosPolicies,
+        fmt: fn(&T) -> String,
+        stamp: fn(&T) -> Option<i64>,
+    ) -> Result<Box<dyn SampleStream>, RosError>
+    where
+        T: 'static + Send + DeserializeOwned,
+    {
+        let mut node = self.node.lock().unwrap();
+        let name =
+            Name::parse(topic).map_err(|e| RosError::Other(format!("bad topic {topic}: {e:?}")))?;
+        let ros_topic = node
+            .create_topic(&name, MessageTypeName::new(pkg, ty), &qos)
+            .map_err(|e| RosError::Other(format!("create_topic {topic}: {e:?}")))?;
+        let sub = node
+            .create_subscription::<T>(&ros_topic, Some(qos))
+            .map_err(|e| RosError::Other(format!("subscribe {topic}: {e:?}")))?;
+        Ok(Box::new(Ros2Stream {
+            sub,
+            fmt,
+            stamp: Some(stamp),
             topic: topic.to_string(),
             type_name: format!("{pkg}/msg/{ty}"),
             seq: 0,
@@ -254,8 +290,12 @@ impl Ros2Client {
                     )
                 })
             }
-            ("geometry_msgs", "PoseStamped") => {
-                self.subscribe_typed::<msgs::PoseStamped>(topic, pkg, ty, q, |m| {
+            ("geometry_msgs", "PoseStamped") => self.subscribe_typed_stamped::<msgs::PoseStamped>(
+                topic,
+                pkg,
+                ty,
+                q,
+                |m| {
                     format!(
                         "pos[{:.3},{:.3},{:.3}] yaw={:+.3} (frame {})",
                         m.pose.position.x,
@@ -264,10 +304,15 @@ impl Ros2Client {
                         m.pose.orientation.yaw(),
                         m.header.frame_id
                     )
-                })
-            }
-            ("nav_msgs", "Odometry") => {
-                self.subscribe_typed::<msgs::OdometryPose>(topic, pkg, ty, q, |m| {
+                },
+                |m| header_ms(&m.header),
+            ),
+            ("nav_msgs", "Odometry") => self.subscribe_typed_stamped::<msgs::OdometryPose>(
+                topic,
+                pkg,
+                ty,
+                q,
+                |m| {
                     format!(
                         "x={:.2} y={:.2} yaw={:+.3} (frame {})",
                         m.pose.position.x,
@@ -275,17 +320,25 @@ impl Ros2Client {
                         m.pose.orientation.yaw(),
                         m.header.frame_id
                     )
-                })
-            }
-            ("sensor_msgs", "Imu") => self.subscribe_typed::<msgs::Imu>(topic, pkg, ty, q, |m| {
-                format!(
-                    "accel[{:+.2},{:+.2},{:+.2}] gyro.z={:+.3}",
-                    m.linear_acceleration.x,
-                    m.linear_acceleration.y,
-                    m.linear_acceleration.z,
-                    m.angular_velocity.z
-                )
-            }),
+                },
+                |m| header_ms(&m.header),
+            ),
+            ("sensor_msgs", "Imu") => self.subscribe_typed_stamped::<msgs::Imu>(
+                topic,
+                pkg,
+                ty,
+                q,
+                |m| {
+                    format!(
+                        "accel[{:+.2},{:+.2},{:+.2}] gyro.z={:+.3}",
+                        m.linear_acceleration.x,
+                        m.linear_acceleration.y,
+                        m.linear_acceleration.z,
+                        m.angular_velocity.z
+                    )
+                },
+                |m| header_ms(&m.header),
+            ),
             ("sensor_msgs", "NavSatFix") => {
                 self.subscribe_typed::<msgs::NavSatFix>(topic, pkg, ty, q, |m| {
                     format!(
@@ -348,6 +401,7 @@ impl Ros2Client {
         Ok(Box::new(Ros2Stream {
             sub,
             fmt: |_: &()| "(live — payload not decoded)".to_string(),
+            stamp: None,
             topic: topic.to_string(),
             type_name: type_name.to_string(),
             seq: 0,
@@ -497,25 +551,27 @@ impl RosClient for Ros2Client {
             // Pose / odometry (RELIABLE) — decoded to x, y, yaw.
             dv_contract::TOPIC_SLAM_POSE
             | dv_contract::TOPIC_ODOM
-            | dv_contract::TOPIC_TESTING_ODOM => self.subscribe_typed::<msgs::OdometryPose>(
-                topic,
-                "nav_msgs",
-                "Odometry",
-                qos_reliable_volatile(),
-                |m| {
-                    let p = &m.pose.position;
-                    format!(
-                        "pose: x={:.2} y={:.2} yaw={:+.3}  (frame {})",
-                        p.x,
-                        p.y,
-                        m.pose.orientation.yaw(),
-                        m.header.frame_id
-                    )
-                },
-            ),
+            | dv_contract::TOPIC_TESTING_ODOM => self
+                .subscribe_typed_stamped::<msgs::OdometryPose>(
+                    topic,
+                    "nav_msgs",
+                    "Odometry",
+                    qos_reliable_volatile(),
+                    |m| {
+                        let p = &m.pose.position;
+                        format!(
+                            "pose: x={:.2} y={:.2} yaw={:+.3}  (frame {})",
+                            p.x,
+                            p.y,
+                            m.pose.orientation.yaw(),
+                            m.header.frame_id
+                        )
+                    },
+                    |m| header_ms(&m.header),
+                ),
             // IMU (BEST_EFFORT) — accel + gyro. (uDV feat/15 and IFSSIM both
             // publish /imu, so TOPIC_IMU covers both.)
-            dv_contract::TOPIC_IMU => self.subscribe_typed::<msgs::Imu>(
+            dv_contract::TOPIC_IMU => self.subscribe_typed_stamped::<msgs::Imu>(
                 topic,
                 "sensor_msgs",
                 "Imu",
@@ -529,6 +585,7 @@ impl RosClient for Ros2Client {
                         m.angular_velocity.z
                     )
                 },
+                |m| header_ms(&m.header),
             ),
             // Control command downlink (BEST_EFFORT Twist).
             dv_contract::TOPIC_CTRL_CMD => self.subscribe_typed::<msgs::Twist>(
@@ -687,6 +744,9 @@ impl RosClient for Ros2Client {
 struct Ros2Stream<T> {
     sub: ros2_client::Subscription<T>,
     fmt: fn(&T) -> String,
+    /// For header-carrying messages: extract the source stamp as Unix ms, so we
+    /// can report source→arrival delay (#91). `None` for headerless types.
+    stamp: Option<fn(&T) -> Option<i64>>,
     topic: String,
     type_name: String,
     seq: u64,
@@ -701,12 +761,25 @@ impl<T: 'static + Send + DeserializeOwned> SampleStream for Ros2Stream<T> {
                 Ok(Some((msg, _info))) => {
                     let seq = self.seq;
                     self.seq += 1;
+                    let mut summary = (self.fmt)(&msg);
+                    // Source→arrival delay = pipeline latency + laptop↔DV-PC
+                    // clock skew (unsynced bench ⇒ read the TREND, not the
+                    // absolute). Only when the message carries a non-zero stamp.
+                    if let Some(stamp) = self.stamp {
+                        if let Some(src_ms) = stamp(&msg) {
+                            let now_ms = std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .map(|d| d.as_millis() as i64)
+                                .unwrap_or(0);
+                            summary = format!("{summary}  · srcΔ {}ms", now_ms - src_ms);
+                        }
+                    }
                     return Some(Sample {
                         topic: self.topic.clone(),
                         type_name: self.type_name.clone(),
                         seq,
                         t_ms: self.start.elapsed().as_millis(),
-                        summary: (self.fmt)(&msg),
+                        summary,
                     });
                 }
                 Ok(None) => {
@@ -764,6 +837,16 @@ fn qos_service() -> QosPolicies {
             max_blocking_time: DdsDuration::from_millis(100),
         })
         .build()
+}
+
+/// A `std_msgs/Header` stamp → Unix ms, or `None` when unstamped (sec=0,
+/// nanosec=0) so we don't report a bogus multi-decade delay.
+fn header_ms(h: &msgs::Header) -> Option<i64> {
+    if h.stamp.sec == 0 && h.stamp.nanosec == 0 {
+        None
+    } else {
+        Some(h.stamp.sec as i64 * 1000 + h.stamp.nanosec as i64 / 1_000_000)
+    }
 }
 
 /// `"std_msgs/msg/UInt8"` → `("std_msgs", "UInt8")` (the `pkg/msg/Type` form

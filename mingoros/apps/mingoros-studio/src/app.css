@@ -240,6 +240,20 @@ main {
     background: var(--no);
     box-shadow: 0 0 9px 1px rgba(255, 77, 77, 0.55);
 }
+/* DDS up but no data from the car — amber, distinct from green "connected"
+   and red "offline"/"disconnected", with a slow pulse so it reads as "waiting". */
+.live.warn {
+    color: var(--hold);
+}
+.live.warn .led {
+    background: var(--hold);
+    box-shadow: 0 0 9px 1px rgba(240, 180, 40, 0.55);
+    animation: live-warn-pulse 1.4s ease-in-out infinite;
+}
+@keyframes live-warn-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+}
 
 main {
     max-width: 1180px;

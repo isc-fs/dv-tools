@@ -49,6 +49,9 @@
     let liveText = $state<string>('connecting');
     let tab = $state<TabId>('board');
     let killView = $state<boolean>(false);
+    // Stands interlock (#60): actuation (EBS + future self-tests) is LOCKED
+    // until the operator explicitly confirms the car is on stands. Default off.
+    let standsArmed = $state<boolean>(false);
 
     // ---- Derivations (all pure, from lib/model) ----
     const byTopic = $derived(indexByTopic(topics));
@@ -160,7 +163,7 @@
 
 <div id="ambient" aria-hidden="true"></div>
 
-<AppBar {meta} {live} {liveText} connect={reconnect} />
+<AppBar {meta} {live} {liveText} connect={reconnect} armed={standsArmed} />
 
 <UpdateBanner />
 
@@ -171,6 +174,19 @@
         actuation (EBS, control/mission topics) — a stray command can move the car.
         Never use it with the wheels able to touch down.</span
     >
+    <span class="grow"></span>
+    <button
+        type="button"
+        class="stands-interlock"
+        class:armed={standsArmed}
+        aria-pressed={standsArmed}
+        onclick={() => (standsArmed = !standsArmed)}
+        title={standsArmed
+            ? 'Actuation ARMED — click to lock. Only while the car is genuinely on stands.'
+            : 'Actuation LOCKED. Click to arm — confirms the car is on stands, wheels off the ground.'}
+    >
+        {standsArmed ? '🔓 ON STANDS · actuation armed' : '🔒 actuation locked — arm (on stands)'}
+    </button>
 </div>
 
 <main>

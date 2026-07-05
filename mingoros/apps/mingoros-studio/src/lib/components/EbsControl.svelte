@@ -10,6 +10,12 @@
     import { forceEbs } from '../api';
     import type { EbsResult } from '../types';
 
+    interface Props {
+        /** The stands interlock (#60): actuation is LOCKED until this is armed. */
+        armed: boolean;
+    }
+    const { armed }: Props = $props();
+
     let open = $state<boolean>(false);
     let busy = $state<boolean>(false);
     let engaged = $state<boolean>(false);
@@ -52,10 +58,14 @@
     type="button"
     class="ebs-btn"
     class:armed={engaged}
+    class:locked={!armed && !engaged}
+    disabled={!armed && !engaged}
     onclick={() => (open = true)}
-    title="Force the Emergency Brake System — car-on-stands checkup"
+    title={armed || engaged
+        ? 'Force the Emergency Brake System — car-on-stands checkup'
+        : 'LOCKED — arm the stands interlock (confirm the car is on stands) to enable actuation'}
 >
-    <span class="ebs-dot"></span>{engaged ? 'EBS ENGAGED' : 'EBS'}
+    <span class="ebs-dot"></span>{engaged ? 'EBS ENGAGED' : armed ? 'EBS' : 'EBS 🔒'}
 </button>
 
 {#if open}
@@ -101,7 +111,7 @@
                     <button
                         type="button"
                         class="btn-danger"
-                        disabled={busy}
+                        disabled={busy || !armed}
                         onclick={() => void call(true)}
                     >
                         {busy ? 'Engaging…' : 'Engage EBS'}

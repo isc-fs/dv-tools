@@ -18,9 +18,11 @@
         liveText: string;
         /** Reconnect callback — validated domain id + optional interface IP. */
         connect: (domain: number, iface: string) => Promise<void>;
+        /** Stands interlock (#60) — actuation (EBS) is locked until armed. */
+        armed: boolean;
     }
 
-    const { meta, live, liveText, connect }: Props = $props();
+    const { meta, live, liveText, connect, armed }: Props = $props();
 
     const tauri = isTauri();
 
@@ -164,7 +166,7 @@
             >
         {/if}
     </div>
-    <EbsControl />
+    <EbsControl {armed} />
     <div class="link"><span>backend</span> <b>{backendLabel}</b></div>
     <div class="live" class:on={live} class:off={!live}>
         <span class="led"></span><span>{liveText}</span>

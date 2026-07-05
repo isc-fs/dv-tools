@@ -2043,3 +2043,39 @@ tr.stale .tag {
     opacity: 0.5;
     cursor: not-allowed;
 }
+
+/* ---- uDV → agent → DDS link-health verdict (#61) ---- */
+.udv-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--panel);
+    padding: 9px 14px;
+    margin-bottom: 16px;
+    font-size: 12px;
+}
+.udv-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex: none;
+}
+.udv-link.udv-ok .udv-dot { background: var(--go); }
+.udv-link.udv-stale .udv-dot { background: var(--hold); }
+.udv-link.udv-down .udv-dot { background: var(--no); }
+.udv-label {
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--ink-dim);
+    font-size: 11px;
+}
+.udv-state {
+    font-family: var(--mono);
+    font-weight: 700;
+}
+.udv-link.udv-ok .udv-state { color: var(--go-ink); }
+.udv-link.udv-stale .udv-state { color: var(--hold-ink); }
+.udv-link.udv-down .udv-state { color: var(--no-ink); }
+.udv-detail { color: var(--ink-dim); }

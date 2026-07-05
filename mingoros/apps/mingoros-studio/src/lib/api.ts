@@ -92,6 +92,7 @@ export function getMeta(): Promise<Meta> {
             discovered: 7,
             connected: true,
             error: null,
+            link_lost: false,
             watchdog_s: 1.5,
         });
     }

@@ -49,6 +49,14 @@ pub fn list_interfaces() -> Vec<NetInterface> {
     out
 }
 
+/// Is `ip` still one of the host's interface IPs? False means the NIC that DDS
+/// was bound to has gone (cable/adapter unplugged, DHCP lease dropped) — the
+/// signal for a silent link loss on a direct-cable DV PC link.
+pub fn ip_present(ip: std::net::IpAddr) -> bool {
+    let ip = ip.to_string();
+    list_interfaces().iter().any(|nif| nif.ip == ip)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -68,5 +76,12 @@ mod tests {
             ifs.windows(2).all(|w| !w[0].loopback || w[1].loopback),
             "loopback interfaces must sort last"
         );
+    }
+
+    #[test]
+    fn ip_present_finds_loopback_and_rejects_bogus() {
+        // Loopback is always up; a TEST-NET-3 address (RFC 5737) never is.
+        assert!(ip_present("127.0.0.1".parse().unwrap()));
+        assert!(!ip_present("203.0.113.255".parse().unwrap()));
     }
 }

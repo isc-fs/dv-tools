@@ -100,12 +100,16 @@
             const [data, m] = await Promise.all([getState(), getMeta()]);
             if (m && Object.keys(m).length > 0) meta = m;
             topics = data.topics ?? [];
-            const up = isTauri() ? meta.connected !== false : true;
+            // A vanished bound interface (link_lost) is a dead link even though
+            // the client object still says "connected" — treat it as down.
+            const up = isTauri() ? meta.connected !== false && !meta.link_lost : true;
             live = up;
             liveText = isTauri()
-                ? up
-                    ? 'connected'
-                    : 'offline'
+                ? meta.link_lost
+                    ? 'link lost'
+                    : up
+                      ? 'connected'
+                      : 'offline'
                 : 'demo · live';
         } catch {
             live = false;

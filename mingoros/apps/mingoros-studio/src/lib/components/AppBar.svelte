@@ -101,6 +101,15 @@
         <span class="sub">Go / No-Go board</span>
     </div>
     <div class="grow"></div>
+    {#if meta.link_lost}
+        <div
+            class="link-lost"
+            role="alert"
+            title="The interface DDS was bound to has disappeared — cable/adapter unplugged, or the link dropped."
+        >
+            ⚠ LINK LOST — {meta.iface ?? 'interface'} gone
+        </div>
+    {/if}
     {#if meta.error}
         <div class="conn-err" title={meta.error}>⚠ {meta.error}</div>
     {/if}

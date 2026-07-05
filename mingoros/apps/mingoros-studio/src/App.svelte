@@ -38,6 +38,7 @@
     import RawTopics from './lib/components/RawTopics.svelte';
     import EchoViewer from './lib/components/EchoViewer.svelte';
     import PipelineRoster from './lib/components/PipelineRoster.svelte';
+    import KillView from './lib/components/KillView.svelte';
 
     const POLL_MS = 250;
 
@@ -47,6 +48,7 @@
     let live = $state<boolean>(false);
     let liveText = $state<string>('connecting');
     let tab = $state<TabId>('board');
+    let killView = $state<boolean>(false);
 
     // ---- Derivations (all pure, from lib/model) ----
     const byTopic = $derived(indexByTopic(topics));
@@ -87,6 +89,14 @@
     const verdict = $derived(
         deriveVerdict(topics, signals, byTopic, meta.watchdog_s ?? 1.5),
     );
+
+    // AS state word for the RES/kill fullscreen — pulled from "(AS_XXX)".
+    const asWord = $derived.by<string | null>(() => {
+        const r = byTopic['/assi/state'];
+        if (!r || r.state !== 'ok' || !r.value) return null;
+        const m = r.value.match(/\(([^)]+)\)/);
+        return m ? m[1] : null;
+    });
 
     const checklistWaiting = $derived(signals.length === 0);
 
@@ -190,3 +200,20 @@
         <EchoViewer live={isTauri()} watchdogS={meta.watchdog_s ?? 1.5} />
     {/if}
 </main>
+
+<button
+    type="button"
+    class="resview-btn"
+    title="Fullscreen RES / kill-decision view — glanceable safety verdict"
+    onclick={() => (killView = true)}>RES VIEW</button
+>
+
+{#if killView}
+    <KillView
+        state={verdict.state}
+        reason={verdict.reason}
+        {asWord}
+        linkLost={meta.link_lost ?? false}
+        onClose={() => (killView = false)}
+    />
+{/if}

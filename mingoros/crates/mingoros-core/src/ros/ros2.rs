@@ -651,11 +651,33 @@ impl RosClient for Ros2Client {
                 }
             }
             if Instant::now() >= deadline {
-                return Err(RosError::Other(format!(
-                    "service {service} timed out after {}s — is the uDV up and \
-                     is {service} advertised on this ROS domain?",
-                    SERVICE_CALL_TIMEOUT.as_secs()
-                )));
+                // Failure taxonomy (#87): resolve the opaque timeout. A ROS 2
+                // service surfaces in DDS discovery as request/reply topics
+                // carrying the service name, so we can tell "never advertised"
+                // (uDV/agent down / wrong domain) from "advertised but silent"
+                // (mapping mismatch / link drop). RustDDS has no service-server
+                // match probe, so advertisement is topic-inferred.
+                let svc = service.trim_start_matches('/');
+                let advertised = self
+                    .context
+                    .discovered_topics()
+                    .iter()
+                    .any(|dt| dt.topic_name().contains(svc));
+                let secs = SERVICE_CALL_TIMEOUT.as_secs();
+                let n = sent_ids.len();
+                return Err(RosError::Other(if advertised {
+                    format!(
+                        "{service}: advertised on the graph but no response in {secs}s \
+                         ({n} request(s) sent) — likely a service-mapping mismatch \
+                         (rmw Enhanced vs Basic) or the link dropped mid-call"
+                    )
+                } else {
+                    format!(
+                        "{service}: NOT advertised on the graph after {secs}s \
+                         ({n} request(s) sent) — the uDV is down, the micro-ROS agent \
+                         isn't bridging the service, or you're on the wrong ROS domain"
+                    )
+                }));
             }
             std::thread::sleep(POLL);
         }

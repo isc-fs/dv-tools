@@ -1,5 +1,27 @@
 # Changelog
 
+## mingoros-v0.4.2
+
+Single-viewport Go / No-Go board — operator feedback: the board should fill the
+screen with live car state and not scroll. The old layout was 1380px tall at
+1280×800 (a vertical scroll, all the horizontal space wasted). Reworked into two
+tiers that use the width and lock the height to the viewport.
+
+- **Verdict band** — a full-width header strip folds the overall-state word, the
+  live-topic count, and the uDV-link badge into one slim line above the hero
+  (replacing the old status banner). The AS-state readout + Go/No-Go stamp stay
+  dominant.
+- **Gauge deck** — the two 12-signal checklists (safety chain, drive readiness)
+  sit side by side beside a compact gauge stack (RES bar, key-fact cards,
+  pipeline roster, record toggle). The deck's height is its tallest column, not
+  a vertical sum, which structurally removes the overflow.
+- **New Details tab** — the raw-topic table and the session debrief move here,
+  keeping the board itself glanceable. The recorder keeps capturing on every tab.
+
+Result: fits 1280×800 / 1366×768 / 1440×900 with zero page scroll — all 12
+signals + verdict + RES visible. Responsive: narrow screens collapse to one
+column, short screens scroll the checklists/gauges internally as a safety valve.
+
 ## mingoros-v0.4.1
 
 Connection honesty — the board now separates "DDS reachable" from "the car is

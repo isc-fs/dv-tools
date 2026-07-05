@@ -40,6 +40,7 @@
     import EchoViewer from './lib/components/EchoViewer.svelte';
     import PipelineRoster from './lib/components/PipelineRoster.svelte';
     import KillView from './lib/components/KillView.svelte';
+    import SessionRecorder from './lib/components/SessionRecorder.svelte';
 
     const POLL_MS = 250;
 
@@ -252,6 +253,8 @@
         </section>
 
         <RawTopics rows={topics} {meta} />
+
+        <SessionRecorder asWord={asWord} verdictState={effVerdict.state} />
     {:else}
         <EchoViewer live={isTauri()} watchdogS={meta.watchdog_s ?? 1.5} />
     {/if}

@@ -99,6 +99,40 @@
     });
     const healthOf = (t: string): TopicHealth => healthMap.get(t) ?? { label: '0', cls: 'ok' };
 
+    // Per-topic numeric series for the inline sparkline (#88). Pull the first
+    // number out of scalar/vector decodes (`data: 3`, `x=1.2`, `linear[...]`)
+    // and skip pure-string topics like /debug (no `data:`/`=`/`[`).
+    const SPARK_WINDOW = 48;
+    const seriesMap = $derived.by(() => {
+        const m = new Map<string, number[]>();
+        for (const s of samples) {
+            if (!/^data:|=|\[/.test(s.summary)) continue;
+            const num = s.summary.match(/-?\d+(\.\d+)?/);
+            if (!num) continue;
+            const v = parseFloat(num[0]);
+            if (!Number.isFinite(v)) continue;
+            const arr = m.get(s.topic);
+            if (arr) arr.push(v);
+            else m.set(s.topic, [v]);
+        }
+        for (const [k, arr] of m) if (arr.length > SPARK_WINDOW) m.set(k, arr.slice(-SPARK_WINDOW));
+        return m;
+    });
+    // A polyline path for `vals` normalised into a w×h box (flat line if constant).
+    function sparkPath(vals: number[], w: number, h: number): string {
+        if (vals.length < 2) return '';
+        const min = Math.min(...vals);
+        const range = Math.max(...vals) - min || 1;
+        const dx = w / (vals.length - 1);
+        return vals
+            .map(
+                (v, i) =>
+                    `${i === 0 ? 'M' : 'L'}${(i * dx).toFixed(1)},${(h - ((v - min) / range) * h).toFixed(1)}`,
+            )
+            .join(' ');
+    }
+    const sparkOf = (t: string): number[] => seriesMap.get(t) ?? [];
+
     onMount(() => {
         void refreshTopics();
         void pump();
@@ -204,6 +238,7 @@
         <div class="echo-chips">
             {#each active as t (t.topic)}
                 {@const h = healthOf(t.topic)}
+                {@const spark = sparkOf(t.topic)}
                 <span class="echo-chip" style="--c:{colorOf(t.topic)}">
                     <span class="echo-chip-dot"></span>
                     <span class="echo-chip-name">{t.topic}</span>
@@ -212,6 +247,16 @@
                         title="count · recent rate · worst recent inter-arrival gap (red = stalled ≥ {watchdogS}s or stream ended; amber = gap several× the typical one)"
                         >{h.label}</span
                     >
+                    {#if spark.length >= 2}
+                        <svg
+                            class="echo-spark"
+                            viewBox="0 0 44 14"
+                            preserveAspectRatio="none"
+                            aria-label="last {spark.length} values"
+                        >
+                            <path d={sparkPath(spark, 44, 14)} style="stroke:{colorOf(t.topic)}" />
+                        </svg>
+                    {/if}
                     {#if !t.running}<span class="echo-chip-ended">ended</span>{/if}
                     <button
                         type="button"

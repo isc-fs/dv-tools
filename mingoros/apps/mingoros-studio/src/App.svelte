@@ -22,6 +22,7 @@
         SAFETY_ORDER,
         aggregate,
         deriveVerdict,
+        fmtAge,
         indexByTopic,
         overallStatus,
         parseDebug,
@@ -103,6 +104,21 @@
             ? { state: 'fault', reason: 'LINK LOST — the bound interface is gone; readings are not live' }
             : verdict,
     );
+
+    // uDV → micro_ros_agent → DDS link-health verdict (#61): the uDV's heartbeat
+    // topics (/debug, /assi/state) arriving fresh means the whole chain is
+    // alive (uDV powered → agent bridging → DDS delivering). Stale = a hiccup;
+    // absent = the chain is down (agent off / uDV off / wrong domain).
+    const udvLink = $derived.by<{ state: 'ok' | 'stale' | 'down'; detail: string }>(() => {
+        const beat = byTopic['/debug'] ?? byTopic['/assi/state'];
+        if (!beat || beat.state !== 'ok') {
+            return { state: 'down', detail: 'no uDV heartbeat — agent off / uDV off / wrong domain' };
+        }
+        if (!beat.fresh) {
+            return { state: 'stale', detail: `heartbeat stale (${fmtAge(beat.age_ms)}) — agent/uDV hiccup` };
+        }
+        return { state: 'ok', detail: `heartbeat live · ${fmtAge(beat.age_ms)}` };
+    });
 
     // AS state word for the RES/kill fullscreen — pulled from "(AS_XXX)".
     const asWord = $derived.by<string | null>(() => {
@@ -196,6 +212,19 @@
         <StatusBanner state={effState} tag={overallTag} />
 
         <PipelineRoster />
+
+        <div class="udv-link udv-{udvLink.state}" title={udvLink.detail}>
+            <span class="udv-dot"></span>
+            <span class="udv-label">uDV LINK</span>
+            <span class="udv-state"
+                >{udvLink.state === 'ok'
+                    ? 'live'
+                    : udvLink.state === 'stale'
+                      ? 'STALE'
+                      : 'DOWN'}</span
+            >
+            <span class="udv-detail">{udvLink.detail}</span>
+        </div>
 
         <StateHero
             state={effVerdict.state}

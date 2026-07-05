@@ -1,0 +1,11 @@
+{
+  "name": "R2D readiness (stopped car)",
+  "checks": [
+    {"topic": "/assi/state", "present": true},
+    {"topic": "/dv/status", "present": true},
+    {"topic": "/debug", "contains": "ASMS:on"},
+    {"topic": "/debug", "contains": "SDC:closed"},
+    {"topic": "/debug", "contains": "EBSinit:ok"},
+    {"topic": "/res/status", "contains": "GO"}
+  ]
+}

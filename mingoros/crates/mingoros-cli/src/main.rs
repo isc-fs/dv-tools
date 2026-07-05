@@ -134,6 +134,15 @@ enum Cmd {
     /// graph.
     Doctor,
 
+    /// Run a declarative commissioning spec (JSON) as a pass/fail interlock
+    /// sequence against the live graph — the scripted pre-run checklist for a
+    /// stopped car. Exits non-zero on any FAIL. Each check: {topic, one of
+    /// contains/equals/present}.
+    Commission {
+        /// Path to the JSON spec.
+        spec: String,
+    },
+
     /// Bridge a uDV onto the ROS graph via `micro_ros_agent` (so `--backend
     /// ros2` can see it). Auto-detects the uDV unless --dev is given.
     Agent {
@@ -211,6 +220,7 @@ fn main() -> Result<()> {
         Cmd::Ifaces => cmd_ifaces(cli.json),
         Cmd::Codegen => cmd_codegen(cli.json),
         Cmd::Doctor => cmd_doctor(conn, cli.json),
+        Cmd::Commission { spec } => cmd_commission(conn, cli.json, &spec),
         Cmd::Agent { dev, baud } => cmd_agent(dev, baud),
         Cmd::Bag { action } => cmd_bag(action),
         Cmd::ForceEbs { state, force } => cmd_force_ebs(conn, state, force),
@@ -713,6 +723,106 @@ fn cmd_doctor(conn: Conn, json: bool) -> Result<()> {
         );
     }
     if type_errs > 0 {
+        std::process::exit(1);
+    }
+    Ok(())
+}
+
+/// Evaluate one commissioning check against the observed topic value (the
+/// decoded sample summary, or `None` if the topic produced no sample).
+fn eval_check(chk: &serde_json::Value, observed: Option<&str>) -> (bool, String) {
+    if let Some(want) = chk.get("contains").and_then(|v| v.as_str()) {
+        return (
+            observed.is_some_and(|o| o.contains(want)),
+            format!("contains '{want}'"),
+        );
+    }
+    if let Some(want) = chk.get("equals").and_then(|v| v.as_str()) {
+        return (observed == Some(want), format!("equals '{want}'"));
+    }
+    if chk.get("present").and_then(|v| v.as_bool()) == Some(true) {
+        return (observed.is_some(), "present".to_string());
+    }
+    (
+        false,
+        "invalid check (need contains / equals / present)".to_string(),
+    )
+}
+
+/// Run a declarative commissioning spec: for each check, observe one sample of
+/// its topic and PASS/FAIL it. Exits non-zero on any FAIL (a bench gate).
+fn cmd_commission(conn: Conn, json_out: bool, path: &str) -> Result<()> {
+    let raw = std::fs::read_to_string(path)?;
+    let spec: serde_json::Value = serde_json::from_str(&raw)?;
+    let name = spec
+        .get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("commission");
+    let checks = match spec.get("checks").and_then(|v| v.as_array()) {
+        Some(c) => c,
+        None => bail!("spec needs a 'checks' array"),
+    };
+    let client = make_client(conn)?;
+
+    // (topic, pass, expectation, observed)
+    let mut rows: Vec<(String, bool, String, String)> = Vec::new();
+    for chk in checks {
+        let topic = chk
+            .get("topic")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let observed = client
+            .subscribe_raw(&topic)
+            .ok()
+            .and_then(|mut s| s.next_sample())
+            .map(|s| s.summary);
+        let (pass, expect) = eval_check(chk, observed.as_deref());
+        rows.push((
+            topic,
+            pass,
+            expect,
+            observed.unwrap_or_else(|| "(no data)".to_string()),
+        ));
+    }
+
+    let failed = rows.iter().filter(|(_, p, _, _)| !p).count();
+    if json_out {
+        let arr: Vec<_> = rows
+            .iter()
+            .map(|(t, p, e, o)| {
+                serde_json::json!({ "topic": t, "pass": p, "expect": e, "observed": o })
+            })
+            .collect();
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "name": name, "passed": rows.len() - failed, "failed": failed, "checks": arr,
+            }))?
+        );
+    } else {
+        println!("commission: {name}\n");
+        for (t, p, e, o) in &rows {
+            println!(
+                "  {}  {:<22} {:<22} {}",
+                if *p { "PASS" } else { "FAIL" },
+                t,
+                e,
+                o
+            );
+        }
+        println!(
+            "\n{}/{} checks passed{}",
+            rows.len() - failed,
+            rows.len(),
+            if failed > 0 {
+                " — FAIL"
+            } else {
+                " — all clear"
+            }
+        );
+    }
+    if failed > 0 {
         std::process::exit(1);
     }
     Ok(())

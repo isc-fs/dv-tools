@@ -185,10 +185,24 @@ enum BagCmd {
         #[arg(long)]
         all: bool,
     },
-    /// Replay a recorded bag (wraps `ros2 bag play`).
+    /// Replay a recorded bag (wraps `ros2 bag play`) — e.g. drive the pipeline
+    /// through a recorded cone track for an end-to-end "moving car" test.
     Play {
         /// Path to the bag directory.
         path: String,
+        /// Loop the bag forever (continuous E2E — Ctrl-C to stop).
+        #[arg(long = "loop")]
+        loop_: bool,
+        /// Playback rate multiplier (e.g. 2.0 = 2×, 0.5 = half speed).
+        #[arg(long)]
+        rate: Option<f64>,
+    },
+    /// List recorded bags under a directory (the bag library) — pure-Rust, no
+    /// ROS needed. Shows name, size, and file count per bag.
+    List {
+        /// Directory to scan for bags.
+        #[arg(long, default_value = ".")]
+        dir: String,
     },
 }
 
@@ -222,7 +236,7 @@ fn main() -> Result<()> {
         Cmd::Doctor => cmd_doctor(conn, cli.json),
         Cmd::Commission { spec } => cmd_commission(conn, cli.json, &spec),
         Cmd::Agent { dev, baud } => cmd_agent(dev, baud),
-        Cmd::Bag { action } => cmd_bag(action),
+        Cmd::Bag { action } => cmd_bag(action, cli.json),
         Cmd::ForceEbs { state, force } => cmd_force_ebs(conn, state, force),
     }
 }
@@ -930,7 +944,89 @@ fn cmd_force_ebs(conn: Conn, state: EbsState, force: bool) -> Result<()> {
     }
 }
 
-fn cmd_bag(action: BagCmd) -> Result<()> {
+/// Human-readable byte size (B / KB / MB / GB).
+fn human_bytes(b: u64) -> String {
+    const U: [&str; 4] = ["B", "KB", "MB", "GB"];
+    let (mut f, mut i) = (b as f64, 0usize);
+    while f >= 1024.0 && i < 3 {
+        f /= 1024.0;
+        i += 1;
+    }
+    if i == 0 {
+        format!("{b} B")
+    } else {
+        format!("{f:.1} {}", U[i])
+    }
+}
+
+/// The bag library (#47): list recorded bags under a directory. Pure-Rust — a
+/// bag is a dir with a `metadata.yaml` and/or `.mcap`/`.db3` files; no ROS.
+fn bag_list(dir: &str, json: bool) -> Result<()> {
+    let mut bags: Vec<(String, u64, usize)> = Vec::new();
+    for entry in std::fs::read_dir(dir)?.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let has_meta = path.join("metadata.yaml").exists();
+        let mcaps: Vec<_> = std::fs::read_dir(&path)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| {
+                matches!(
+                    p.extension().and_then(|x| x.to_str()),
+                    Some("mcap") | Some("db3")
+                )
+            })
+            .collect();
+        if !has_meta && mcaps.is_empty() {
+            continue;
+        }
+        let size: u64 = mcaps
+            .iter()
+            .filter_map(|p| std::fs::metadata(p).ok())
+            .map(|m| m.len())
+            .sum();
+        let name = path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into();
+        bags.push((name, size, mcaps.len()));
+    }
+    bags.sort();
+
+    if json {
+        let arr: Vec<_> = bags
+            .iter()
+            .map(|(n, s, c)| serde_json::json!({ "name": n, "bytes": s, "files": c }))
+            .collect();
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({ "dir": dir, "bags": arr }))?
+        );
+    } else if bags.is_empty() {
+        println!("No bags found under {dir}/.");
+    } else {
+        println!("{:<34} {:>10}  FILES", "BAG", "SIZE");
+        for (n, s, c) in &bags {
+            println!("{:<34} {:>10}  {}", n, human_bytes(*s), c);
+        }
+        println!(
+            "\n{} bag(s) in {dir}/. Replay one:  mingoros bag play {dir}/<bag>",
+            bags.len()
+        );
+    }
+    Ok(())
+}
+
+fn cmd_bag(action: BagCmd, json: bool) -> Result<()> {
+    // The library listing is pure-Rust — no ROS needed.
+    if let BagCmd::List { dir } = &action {
+        return bag_list(dir, json);
+    }
     let (argv, note): (Vec<String>, String) = match action {
         BagCmd::Record { output, all } => {
             let mut a = vec![
@@ -954,10 +1050,22 @@ fn cmd_bag(action: BagCmd) -> Result<()> {
                 format!("recording to {output}/ — Ctrl-C to stop + finalise"),
             )
         }
-        BagCmd::Play { path } => (
-            vec!["bag".into(), "play".into(), path.clone()],
-            format!("replaying {path}"),
-        ),
+        BagCmd::Play { path, loop_, rate } => {
+            let mut a = vec!["bag".into(), "play".into(), path.clone()];
+            if loop_ {
+                a.push("--loop".into());
+            }
+            if let Some(r) = rate {
+                a.push("--rate".into());
+                a.push(r.to_string());
+            }
+            let mut n = format!("replaying {path}");
+            if loop_ {
+                n.push_str(" (looping — Ctrl-C to stop)");
+            }
+            (a, n)
+        }
+        BagCmd::List { .. } => unreachable!("handled above"),
     };
 
     eprintln!("ros2 {}", argv.join(" "));

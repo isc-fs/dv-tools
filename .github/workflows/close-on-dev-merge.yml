@@ -84,3 +84,55 @@ jobs:
                 console.log(`Could not close #${n}: ${err.message}`);
               }
             }
+
+      - name: Close the branch's tracking issue by name
+        uses: actions/github-script@v7
+        env:
+          HEAD_REF:  ${{ github.event.pull_request.head.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BASE:   ${{ github.event.pull_request.base.ref }}
+        with:
+          # branch-issue.yml opens a `[feat/N-...]` / `[fix/N-...]` tracking issue
+          # per branch. The step above only closes issues a PR explicitly names
+          # with `Closes #N`, which is easy to forget — so also close the stub by
+          # matching its `[<branch>]` title to the PR's head branch. This makes a
+          # tracking issue close on merge whether or not the PR referenced it.
+          script: |
+            const headRef = process.env.HEAD_REF || '';
+            const prNum   = parseInt(process.env.PR_NUMBER, 10);
+            const baseRef = process.env.PR_BASE;
+
+            // Only feat/** and fix/** branches have a `[branch]` tracking stub.
+            if (!/^(feat|fix)\//.test(headRef)) {
+              console.log(`Head ref "${headRef}" is not a feat/fix branch, skipping.`);
+              return;
+            }
+
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              state: 'open',
+              per_page: 100,
+            });
+            const tracking = issues.find(
+              (i) => !i.pull_request && i.title.startsWith(`[${headRef}]`),
+            );
+            if (!tracking) {
+              console.log(`No open tracking issue titled "[${headRef}]".`);
+              return;
+            }
+
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              issue_number: tracking.number,
+              state: 'closed',
+              state_reason: 'completed',
+            });
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              issue_number: tracking.number,
+              body:  `Closed automatically — branch \`${headRef}\` merged via #${prNum} into \`${baseRef}\`.`,
+            });
+            console.log(`Closed tracking issue #${tracking.number} for [${headRef}].`);

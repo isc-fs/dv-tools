@@ -29,7 +29,13 @@ Download the latest from
 
 macOS `.dmg` is ad-hoc signed — first launch needs **right-click → Open →
 confirm**. The Windows build needs **[Npcap](https://npcap.com)** installed (the
-RustDDS transport uses pcap libraries).
+RustDDS transport uses pcap libraries there).
+
+On **Linux** the desktop app needs **WebKitGTK 4.1** — **Ubuntu 22.04+** (20.04
+is unsupported). Install the `.deb` with `sudo apt install ./ISC.MingoROS_*.deb`
+(use `apt`, not `dpkg -i`, so the deps resolve); the `.AppImage` needs
+`sudo apt install libfuse2`. The Linux build needs **no pcap**. Full per-format
+steps + a troubleshooting table are in **[docs/INSTALL.md](docs/INSTALL.md)**.
 
 To connect the laptop to the car's DV PC over a direct Ethernet cable, follow
 **[docs/CONNECT.md](docs/CONNECT.md)** (static IPs · domain · interface bind).

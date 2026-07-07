@@ -12,6 +12,7 @@
     import { onMount } from 'svelte';
     import type { ParsedSignal } from '../types';
     import { deriveStartup } from '../startup';
+    import PneumaticDiagram from './PneumaticDiagram.svelte';
 
     interface Props {
         signalMap: Record<string, ParsedSignal>;
@@ -99,6 +100,9 @@
                     <span class="su-rlbl">{n.label}</span>
                 </span>
             {/each}
+        </div>
+        <div class="su-diagram">
+            <PneumaticDiagram p={view.pneumatic} />
         </div>
         {#if view.ebs.coarse && view.ebs.tone !== 'idle'}
             <div class="su-ebs-coarse">
@@ -306,6 +310,17 @@
     .su-ebs-coarse code {
         font-family: var(--mono);
         color: var(--ink-dim);
+    }
+    .su-diagram {
+        margin-top: 12px;
+        padding: 8px;
+        border-radius: 10px;
+        background: #080c12;
+        border: 1px solid var(--line);
+        background-image:
+            linear-gradient(#ffffff04 1px, transparent 1px),
+            linear-gradient(90deg, #ffffff04 1px, transparent 1px);
+        background-size: 26px 26px;
     }
 
     /* checklist */

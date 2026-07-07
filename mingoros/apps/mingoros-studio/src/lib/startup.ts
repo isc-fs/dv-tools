@@ -54,10 +54,26 @@ export interface EbsView {
     coarse: boolean;
 }
 
+export interface PneumaticView {
+    /** AS SDC relay (D4) closed — live from /debug SDC, falls back to sub-state */
+    sdcClosed: boolean;
+    /** storage-tank pressure state (no numeric bar on the wire — state only) */
+    tanks: 'good' | 'low' | 'charging' | 'unknown';
+    /** EBS actuator 1 (D1) firing now — from the EBS-init sub-state */
+    firingD1: boolean;
+    /** EBS actuator 2 (D2) firing now */
+    firingD2: boolean;
+    /** brake line pressurised / caliper clamping */
+    braking: boolean;
+    /** EBS armed (self-check passed, holding the brakes) */
+    armed: boolean;
+}
+
 export interface StartupView {
     phase: Phase;
     asWord: string | null;
     assi: AssiLook;
+    pneumatic: PneumaticView;
     steps: StartupStep[];
     currentId: string | null;
     hint: string;
@@ -248,10 +264,33 @@ export function deriveStartup(i: StartupInputs): StartupView {
         },
     ];
 
+    // Pneumatic schematic state — what activates. The firing actuator comes
+    // from the EBS-init sub-state; the SDC relay is live from /debug; tank
+    // pressure is state-only (no bar value on the wire).
+    const ebsKey = (i.signalMap['ebsinit']?.val ?? '').toLowerCase();
+    const firingD1 = ebsKey === 'checkactuator1';
+    const firingD2 = ebsKey === 'checkactuator2';
+    const sdcTok = v('sdc');
+    const pneumatic: PneumaticView = {
+        firingD1,
+        firingD2,
+        armed: ebsDone,
+        sdcClosed: sdcTok ? sdcTok === 'closed' : ebs.railIdx > CP_IDX || ebsDone,
+        tanks: ebsFailed
+            ? 'low'
+            : ebsDone || ebs.railIdx > CP_IDX
+              ? 'good'
+              : lv && ebs.tone === 'run'
+                ? 'charging'
+                : 'unknown',
+        braking: firingD1 || firingD2 || (ebsDone && !driving),
+    };
+
     return {
         phase,
         asWord: i.asWord,
         assi: assiLook(i.asWord),
+        pneumatic,
         steps,
         currentId,
         hint,

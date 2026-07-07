@@ -225,6 +225,10 @@
 
 <div id="ambient" aria-hidden="true"></div>
 
+<!-- The connection bar + update banner + safety strip stick to the top as ONE
+     unit, so the (safety-critical) strip never slides over the wrapping backend
+     row of the bar. -->
+<div class="app-header">
 <AppBar
     {meta}
     {live}
@@ -258,6 +262,7 @@
     >
         {standsArmed ? '🔓 ON STANDS · actuation armed' : '🔒 actuation locked — arm (on stands)'}
     </button>
+</div>
 </div>
 
 <main>

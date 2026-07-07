@@ -1,6 +1,6 @@
 [package]
 name = "mingoros-studio"
-version = "0.4.5"
+version = "0.4.6"
 description = "ISC MingoROS — native desktop dashboard for the DV state machine + safety systems."
 edition = "2021"
 rust-version = "1.95"

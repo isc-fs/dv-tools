@@ -1,5 +1,18 @@
 # Changelog
 
+## mingoros-v0.4.6
+
+Header + layout fixes.
+
+- **Fixed the safety strip overlapping the connection bar.** The bar and the
+  strip were both independently `sticky` at the top and overlapped while
+  scrolling (visible when the bar wraps to a second row at narrower widths).
+  They now stick as one `.app-header` unit.
+- **The single-viewport board is robust to the bar wrapping.** The app shell is
+  now a flex column — the header takes its natural height and the board fills
+  exactly what's left, instead of a fixed calc that assumed a one-row bar. No
+  page scroll even when the bar wraps.
+
 ## mingoros-v0.4.5
 
 Startup tab — **live EBS pneumatic diagram**.

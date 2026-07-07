@@ -102,11 +102,21 @@ main {
 }
 
 /* ---- connection bar ---- */
-/* The header pieces (bar + update banner + safety strip) stick as one unit so
-   two separately-sticky top:0 elements can't overlap while scrolling. */
+/* Flex-column app shell: the header takes its natural height (whatever the
+   connection bar wraps to), and <main> fills exactly the rest — so the
+   single-viewport board never has to guess the header height. */
+#app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+}
+/* The header pieces (bar + update banner + safety strip) are one block pinned
+   at the top; grouping them also stops the two formerly-sticky elements from
+   overlapping. */
 .app-header {
-    position: sticky;
-    top: 0;
+    flex: none;
+    position: relative;
     z-index: 40;
     background: var(--ground-2);
 }
@@ -262,8 +272,16 @@ main {
 
 main {
     max-width: 1240px;
+    width: 100%;
     margin: 0 auto;
     padding: 12px 18px 14px;
+    /* fill the space under the header; scroll internally (the board tab clips
+       to fit, the taller tabs scroll here) */
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
 }
 
 /* ---- always-visible overall banner (redundant with the stamp, reads first) ---- */
@@ -2155,10 +2173,9 @@ tr.stale .tag {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
     gap: 8px;
-    /* Fill the viewport below the pinned chrome so the deck (never the page)
-       absorbs any overflow. Reserve: topbar 53 + slim strip 34 + tabbar 35
-       + main pad 26 + tabbar gap/margin ~18. Tuned against measurement. */
-    height: calc(100vh - 53px - 34px - 35px - 26px - 26px);
+    /* Fill main's remaining space (below the tab bar); the deck (never the
+       page) absorbs any overflow. No header-height guessing — main is flex. */
+    flex: 1 1 auto;
     min-height: 0;
     overflow: hidden;
 }

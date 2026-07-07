@@ -22,6 +22,7 @@
         SAFETY_ORDER,
         aggregate,
         deriveVerdict,
+        extractWord,
         fmtAge,
         indexByTopic,
         overallStatus,
@@ -40,6 +41,7 @@
     import KillView from './lib/components/KillView.svelte';
     import SessionRecorder from './lib/components/SessionRecorder.svelte';
     import Details from './lib/components/Details.svelte';
+    import StartupGuide from './lib/components/StartupGuide.svelte';
     import { recorder } from './lib/recorderStore.svelte';
 
     const POLL_MS = 250;
@@ -149,6 +151,17 @@
     // "connected". The honest signal is a FRESH priority sample arriving.
     const freshTopics = $derived(topics.filter((t) => t.state === 'ok' && t.fresh));
     const receiving = $derived(freshTopics.length > 0);
+
+    // Startup-tab inputs: the selected mission word (/ami/mission) and whether
+    // the DV pipeline is up (/dv/status fresh) — read-only, for the live guide.
+    const missionWord = $derived.by<string | null>(() => {
+        const r = byTopic['/ami/mission'];
+        return r && r.state === 'ok' ? extractWord(r.value) : null;
+    });
+    const dvpcUp = $derived.by<boolean>(() => {
+        const r = byTopic['/dv/status'];
+        return !!r && r.state === 'ok' && r.fresh;
+    });
 
     // Keep the full-viewport red ambient wash in sync with FAULT.
     $effect(() => {
@@ -306,6 +319,14 @@
                 </div>
             </div>
         </div>
+    {:else if tab === 'startup'}
+        <StartupGuide
+            {signalMap}
+            {asWord}
+            {receiving}
+            {missionWord}
+            {dvpcUp}
+        />
     {:else if tab === 'details'}
         <Details rows={topics} {meta} />
     {:else}

@@ -1,7 +1,7 @@
 //! In-process fake ROS graph — the hardware-free backend.
 //!
 //! Publishes synthetic, contract-accurate samples for every topic in
-//! [`dv_contract::KNOWN_TOPICS`], so `mingoros topics` / `echo` / `hz` work
+//! [`dv_contract::KNOWN_TOPICS`], so `mingoROS topics` / `echo` / `hz` work
 //! with no ROS install and no live pipeline. This is both a development
 //! convenience and the seed of the "ROS-side fake publisher" the design calls
 //! for (drives the visualizer with no car). Deterministic: values vary by

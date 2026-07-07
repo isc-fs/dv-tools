@@ -9,7 +9,7 @@ QoS — is burned down.
 
 - **Target graph:** IFSSIM's `dv_pipeline_stack` (ROS 2 Humble, `rmw_fastrtps`,
   `ROS_DOMAIN_ID=0`) replaying a recorded autocross bag (`ros2 bag play --loop`).
-- **Client:** the `mingoros` CLI built with `--features ros2`, packaged as a
+- **Client:** the `mingoROS` CLI built with `--features ros2`, packaged as a
   Linux image ([`Dockerfile`](Dockerfile)) and run with `--network host` on the
   same DDS domain — because on Docker Desktop for macOS, `network_mode: host`
   binds the Linux VM (not the macOS host) and Fast DDS SHM is container-local,

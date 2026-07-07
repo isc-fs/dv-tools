@@ -25,7 +25,7 @@ Download the latest from
 | | macOS | Linux | Windows |
 |---|---|---|---|
 | **ISC MingoROS** desktop app | `.dmg` (universal) | `.deb` / `.AppImage` / `.rpm` | `-setup.exe` (NSIS) |
-| **`mingoros`** CLI | binary (aarch64/x86_64) | binary (x86_64/aarch64) | `.exe` |
+| **`mingoROS`** CLI | binary (aarch64/x86_64) | binary (x86_64/aarch64) | `.exe` |
 
 macOS `.dmg` is ad-hoc signed — first launch needs **right-click → Open →
 confirm**. The Windows build needs **[Npcap](https://npcap.com)** installed (the
@@ -76,19 +76,19 @@ npm run tauri:dev            # run it; npm run tauri:build to bundle
 
 ## The CLI
 
-The `mingoros` binary is the scriptable/headless companion; `--backend fake`
+The `mingoROS` binary is the scriptable/headless companion; `--backend fake`
 (default) needs no ROS, `--backend ros2` joins a live graph.
 
 ```bash
-mingoros topics                              # list the graph: name, type, QoS
-mingoros echo /dv/status --count 5           # decode the pipeline lifecycle bytes
-mingoros hz /assi/state --samples 20         # measure rate + jitter
-mingoros state                               # ★ live safety dashboard (terminal)
-mingoros pub /ami/mission 2 --force          # inject a message (actuation → --force)
-mingoros force-ebs on --force                # trigger the uDV /force_ebs service
+mingoROS topics                              # list the graph: name, type, QoS
+mingoROS echo /dv/status --count 5           # decode the pipeline lifecycle bytes
+mingoROS hz /assi/state --samples 20         # measure rate + jitter
+mingoROS state                               # ★ live safety dashboard (terminal)
+mingoROS pub /ami/mission 2 --force          # inject a message (actuation → --force)
+mingoROS force-ebs on --force                # trigger the uDV /force_ebs service
 
 # against a live car (see docs/CONNECT.md):
-mingoros topics --backend ros2 --domain 0 --iface 10.42.0.2
+mingoROS topics --backend ros2 --domain 0 --iface 10.42.0.2
 ```
 
 The **ros2 backend** (ros2-client / RustDDS, behind the `ros2` cargo feature)
@@ -105,9 +105,9 @@ The uDV is a micro-ROS (XRCE-DDS) endpoint on USB-CDC — it only appears on the
 ROS graph once a `micro_ros_agent` bridges it. ISC MingoROS drives that:
 
 ```bash
-mingoros udv                       # detect the board (ranked USB candidates)
-mingoros agent --dev /dev/ttyACM0  # bridge it onto the graph (owns the agent)
-mingoros state --backend ros2      # live safety dashboard of the uDV
+mingoROS udv                       # detect the board (ranked USB candidates)
+mingoROS agent --dev /dev/ttyACM0  # bridge it onto the graph (owns the agent)
+mingoROS state --backend ros2      # live safety dashboard of the uDV
 ```
 
 `udv` ranks ports on VID/PID `0483:5740` **plus** the USB product/serial name
@@ -132,7 +132,7 @@ mingoros/
 │           ├── mod.rs             #   RosClient trait + TopicInfo/Sample
 │           ├── fake.rs            #   in-process synthetic graph
 │           └── ros2.rs            #   (ros2) ros2-client/RustDDS live backend
-├── crates/mingoros-cli/           # the `mingoros` binary (clap)
+├── crates/mingoros-cli/           # the `mingoROS` binary (clap)
 ├── apps/mingoros-studio/          # the ISC MingoROS desktop app (Tauri 2 + Svelte 5)
 │   ├── src/                       #   Svelte frontend (the Go/No-Go board)
 │   └── src-tauri/                 #   Rust: mingoros-core in a window (see its README)

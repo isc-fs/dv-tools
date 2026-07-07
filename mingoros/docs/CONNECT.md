@@ -56,10 +56,10 @@ export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
   `ros2 · dom 0 · 10.42.0.2 · N topics` — **N > 0 means the DV PC is reachable**.
 - **CLI (preflight):**
   ```bash
-  mingoros topics --backend ros2 --domain 0 --iface 10.42.0.2
+  mingoROS topics --backend ros2 --domain 0 --iface 10.42.0.2
   ```
   You should see the pipeline's topics (`/assi/state`, `/debug`, `/res/status`,
-  …). `mingoros state --backend ros2 --domain 0 --iface 10.42.0.2` opens the live
+  …). `mingoROS state --backend ros2 --domain 0 --iface 10.42.0.2` opens the live
   dashboard.
 
 Binding to the interface makes RustDDS join + send discovery multicast on the
@@ -78,7 +78,7 @@ sudo ip route add 224.0.0.0/4 dev eth0
 |---|---|---|
 | `ping` to the DV PC fails | IPs not on the same subnet / cable/NIC down | redo step 1; check `ifconfig`/`ip addr` |
 | `0 topics`, ping OK | multicast not crossing the cable | set the **iface** bind (step 3); else add the multicast route |
-| Some topics, not `/debug` | uDV agent not bridging | start `micro_ros_agent` on the DV PC (`mingoros agent`) |
+| Some topics, not `/debug` | uDV agent not bridging | start `micro_ros_agent` on the DV PC (`mingoROS agent`) |
 | Topics on a laptop tool but not ISC MingoROS | wrong **domain** | match `ROS_DOMAIN_ID` (pipeline = 0) |
 | Connects then goes stale | firewall dropping DDS UDP | allow UDP 7400–7500 + ephemeral on both ends |
 

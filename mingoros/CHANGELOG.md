@@ -1,5 +1,25 @@
 # Changelog
 
+## mingoros-v0.4.4
+
+New **Startup** tab — a live, read-only guide through the car's safe power-up
+sequence, driven from the ROS 2 topics the app already decodes.
+
+- **Real-time startup guidance:** reads `/debug` + `/assi/state` + `/ami/mission`
+  + `/dv/status` and tells the operator which step they're on and what to do
+  next — `LV heartbeat → ASMS → TSMS → EBS self-check → RES → mission →
+  AS READY → 5 s dwell → GO`. Shows the ASSI lamp (yellow/blue, solid/flashing),
+  the live AS-state word, power-up indicators (LV/ASMS/TS/DVPC), a step
+  checklist (done / current / pending / error), and a **"Next:"** hint. The
+  EMERGENCY and EBS-failed phases surface loudly.
+- **EBS self-check sub-state rail:** the EBS-init FSM as a node rail
+  (`SDC · LOW · PRESS · TS · ACT 1 · WAIT · ACT 2 · ARMED`), lit live from the
+  `EBSinit` token — the active sub-state pulses amber, a failure marks the
+  pressure node red. State-only (the wire carries the FSM state, not raw tank
+  pressures); when only a coarse `ok`/`fail` is on the wire it says so.
+- Client-timed **5 s READY dwell** countdown. Read-only throughout — indicators,
+  never actuation.
+
 ## mingoros-v0.4.3
 
 CLI command renamed **`mingoros` → `mingoROS`**.

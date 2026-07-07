@@ -75,11 +75,36 @@
         </div>
     </div>
 
-    <!-- EBS self-check state (state-only; the wire doesn't carry raw pressures) -->
+    <!-- EBS self-check: sub-state rail (state-only; the wire carries the FSM
+         state, not raw tank pressures) -->
     <div class="su-ebs su-ebs-{view.ebs.tone}">
-        <span class="su-ebs-k">EBS self-check</span>
-        <span class="su-ebs-v">{view.ebs.label}</span>
-        <span class="su-ebs-note">runs in AS OFF · FS-Rules T15</span>
+        <div class="su-ebs-head">
+            <span class="su-ebs-k">EBS self-check</span>
+            <span class="su-ebs-v">{view.ebs.label}</span>
+            <span class="su-ebs-note">runs in AS OFF · FS-Rules T15</span>
+        </div>
+        <div class="su-rail">
+            {#each view.ebs.rail as n, i (n.key)}
+                {#if i > 0}
+                    <span
+                        class="su-rline su-r-{view.ebs.rail[i - 1].state === 'done'
+                            ? 'done'
+                            : n.state === 'err'
+                              ? 'err'
+                              : 'pending'}"
+                    ></span>
+                {/if}
+                <span class="su-rnode su-r-{n.state}" title={n.key}>
+                    <span class="su-rdot"></span>
+                    <span class="su-rlbl">{n.label}</span>
+                </span>
+            {/each}
+        </div>
+        {#if view.ebs.coarse && view.ebs.tone !== 'idle'}
+            <div class="su-ebs-coarse">
+                firmware reported <code>{view.ebs.raw}</code> — sub-states shown from the pass/fail result (no per-step token on the wire)
+            </div>
+        {/if}
     </div>
 
     <!-- the live checklist -->
@@ -192,13 +217,17 @@
     /* EBS state strip */
     .su-ebs {
         display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 10px 16px;
+        flex-direction: column;
+        padding: 12px 16px 8px;
         border-radius: 11px;
         border: 1px solid var(--line);
         background: var(--panel);
         font-size: 13px;
+    }
+    .su-ebs-head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
     }
     .su-ebs-k {
         font-family: var(--mono);
@@ -215,6 +244,69 @@
     .su-ebs-done .su-ebs-v { color: var(--go-ink); }
     .su-ebs-fail { border-color: var(--no-line); background: var(--no-bg); }
     .su-ebs-fail .su-ebs-v { color: var(--no-ink); }
+
+    /* EBS sub-state rail */
+    .su-rail {
+        display: flex;
+        align-items: center;
+        margin-top: 12px;
+    }
+    .su-rnode {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 5px;
+        flex: 0 0 auto;
+    }
+    .su-rdot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #0c111a;
+        border: 1.5px solid var(--line-2);
+        transition: 0.2s;
+    }
+    .su-rlbl {
+        font-family: var(--mono);
+        font-size: 8.5px;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        color: var(--ink-faint);
+    }
+    .su-rline {
+        flex: 1;
+        height: 2px;
+        background: var(--line);
+        margin: 0 4px 16px;
+        border-radius: 2px;
+        transition: 0.2s;
+    }
+    .su-rline.su-r-done { background: var(--go-line); }
+    .su-rline.su-r-err { background: var(--no-line); }
+    .su-rnode.su-r-done .su-rdot { background: var(--go); border-color: var(--go); box-shadow: 0 0 7px var(--go); }
+    .su-rnode.su-r-done .su-rlbl { color: var(--ink-dim); }
+    .su-rnode.su-r-active .su-rdot {
+        background: var(--hold);
+        border-color: var(--hold);
+        box-shadow: 0 0 10px var(--hold);
+        animation: su-rpulse 1s ease-in-out infinite;
+    }
+    .su-rnode.su-r-active .su-rlbl { color: var(--hold-ink); }
+    .su-rnode.su-r-err .su-rdot { background: var(--no); border-color: var(--no); box-shadow: 0 0 10px var(--no); }
+    .su-rnode.su-r-err .su-rlbl { color: var(--no-ink); }
+    @keyframes su-rpulse {
+        0%, 100% { box-shadow: 0 0 7px var(--hold); }
+        50% { box-shadow: 0 0 14px var(--hold); }
+    }
+    .su-ebs-coarse {
+        margin-top: 6px;
+        font-size: 10.5px;
+        color: var(--ink-faint);
+    }
+    .su-ebs-coarse code {
+        font-family: var(--mono);
+        color: var(--ink-dim);
+    }
 
     /* checklist */
     .su-steps {

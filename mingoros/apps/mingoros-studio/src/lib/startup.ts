@@ -35,6 +35,12 @@ export interface PowerRailItem {
     val: string;
 }
 
+export type RailNodeState = 'done' | 'active' | 'err' | 'pending';
+export interface EbsRailNode {
+    key: string;
+    label: string;
+    state: RailNodeState;
+}
 export interface EbsView {
     /** raw EBS-init token from /debug, e.g. "ok" / "Done" / "CheckActuator1" / "Failed" */
     raw: string;
@@ -42,6 +48,10 @@ export interface EbsView {
     tone: 'idle' | 'run' | 'done' | 'fail';
     /** index into EBS_RAIL, -1 when unknown/idle */
     railIdx: number;
+    /** the self-check sub-state progression, one node per firmware sub-state */
+    rail: EbsRailNode[];
+    /** true when the token isn't a named sub-state (wire only emitted ok/fail) */
+    coarse: boolean;
 }
 
 export interface StartupView {
@@ -91,6 +101,10 @@ const EBS_LABEL: Record<string, string> = {
     fail: 'FAILED',
 };
 
+// Short node captions, aligned to EBS_RAIL indices.
+const EBS_SHORT = ['SDC', 'LOW', 'PRESS', 'TS', 'ACT 1', 'WAIT', 'ACT 2', 'ARMED'];
+const CP_IDX = 2; // CheckPressure — where a storage-pressure failure surfaces
+
 function ebsView(raw0: string): EbsView {
     const raw = raw0 || '';
     const k = raw.toLowerCase();
@@ -99,8 +113,22 @@ function ebsView(raw0: string): EbsView {
     const tone: EbsView['tone'] = failed ? 'fail' : done ? 'done' : k ? 'run' : 'idle';
     // map the token to a rail index when it's a named sub-state
     const idx = EBS_RAIL.findIndex((s) => s.toLowerCase() === k);
-    const railIdx = done ? EBS_RAIL.length - 1 : failed ? 2 : idx;
-    return { raw, label: EBS_LABEL[k] ?? (raw || '—'), tone, railIdx };
+    const railIdx = done ? EBS_RAIL.length - 1 : failed ? CP_IDX : idx;
+    // the wire only named a sub-state when idx>=0; otherwise it's coarse (ok/fail)
+    const coarse = idx < 0 && !failed;
+
+    const rail: EbsRailNode[] = EBS_RAIL.map((key, i) => {
+        let state: RailNodeState;
+        if (failed) state = i < CP_IDX ? 'done' : i === CP_IDX ? 'err' : 'pending';
+        else if (done) state = 'done';
+        else if (idx < 0) state = 'pending'; // unknown / not yet reporting a sub-state
+        else if (i < idx) state = 'done';
+        else if (i === idx) state = 'active';
+        else state = 'pending';
+        return { key, label: EBS_SHORT[i] ?? key, state };
+    });
+
+    return { raw, label: EBS_LABEL[k] ?? (raw || '—'), tone, railIdx, rail, coarse };
 }
 
 const HINTS: Record<string, string> = {

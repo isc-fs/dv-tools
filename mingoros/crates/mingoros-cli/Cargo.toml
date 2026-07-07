@@ -8,9 +8,9 @@ license      .workspace = true
 repository   .workspace = true
 authors      .workspace = true
 
-# The binary is `mingoros` (docs may alias it `mr`).
+# The binary is `mingoROS` (docs may alias it `mr`).
 [[bin]]
-name = "mingoros"
+name = "mingoROS"
 path = "src/main.rs"
 
 [dependencies]

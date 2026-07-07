@@ -7,7 +7,7 @@ name: ISC MingoROS Release
 #     Linux   →  .deb  .AppImage  .rpm
 #     macOS   →  .dmg  (universal — Apple Silicon + Intel)
 #     Windows →  NSIS -setup.exe
-#   mingoros CLI (Rust binary):
+#   mingoROS CLI (Rust binary):
 #     Linux x86_64 / aarch64, macOS aarch64 / x86_64, Windows x86_64
 #
 # A `mingoros-v*` tag (e.g. `mingoros-v0.2.0`) builds everything in parallel and
@@ -83,7 +83,7 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            **ISC MingoROS** — the DV-stack ROS 2 topic debugger: the `mingoros` CLI + the ISC MingoROS desktop app.
+            **ISC MingoROS** — the DV-stack ROS 2 topic debugger: the `mingoROS` CLI + the ISC MingoROS desktop app.
 
             ### ISC MingoROS (desktop app)
             - **macOS**: `.dmg` (universal, ad-hoc signed — first launch needs **right-click → Open → confirm**)
@@ -93,7 +93,7 @@ jobs:
 
             Connect the laptop to the car PC over wired Ethernet (same subnet); the app auto-joins ROS domain 0.
 
-            ### CLI (`mingoros`)
+            ### CLI (`mingoROS`)
             Pre-built binaries below (Linux x86_64 / aarch64, macOS aarch64 / x86_64, Windows x86_64), or build from source:
             ```bash
             git clone --branch ${{ github.ref_name }} https://github.com/isc-fs/dv-tools
@@ -155,7 +155,7 @@ jobs:
           rustflags: ''
 
       - name: Build release binary (with the ros2 transport)
-        run: cargo build --release --bin mingoros --features ros2 --target ${{ matrix.target }}
+        run: cargo build --release --bin mingoROS --features ros2 --target ${{ matrix.target }}
 
       - name: Compute version
         id: version
@@ -171,9 +171,9 @@ jobs:
         if: matrix.os != 'windows-latest'
         shell: bash
         run: |
-          STAGE="mingoros-${{ steps.version.outputs.version }}-${{ matrix.target }}"
+          STAGE="mingoROS-${{ steps.version.outputs.version }}-${{ matrix.target }}"
           mkdir "$STAGE"
-          cp "target/${{ matrix.target }}/release/mingoros" "$STAGE/"
+          cp "target/${{ matrix.target }}/release/mingoROS" "$STAGE/"
           cp README.md "$STAGE/" 2>/dev/null || true
           tar -czf "$STAGE.tar.gz" "$STAGE"
           echo "archive=mingoros/$STAGE.tar.gz" >> "$GITHUB_ENV"
@@ -182,9 +182,9 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          $stage = "mingoros-${{ steps.version.outputs.version }}-${{ matrix.target }}"
+          $stage = "mingoROS-${{ steps.version.outputs.version }}-${{ matrix.target }}"
           New-Item -ItemType Directory -Force -Path $stage | Out-Null
-          Copy-Item "target/${{ matrix.target }}/release/mingoros.exe" $stage
+          Copy-Item "target/${{ matrix.target }}/release/mingoROS.exe" $stage
           if (Test-Path README.md) { Copy-Item README.md $stage }
           Compress-Archive -Path $stage -DestinationPath "$stage.zip"
           "archive=mingoros/$stage.zip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8

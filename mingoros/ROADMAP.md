@@ -58,10 +58,10 @@ debugging only**; raw CAN stays MingoCAN's job.
 > Firmware flashing is **out of scope** — ISC MingoROS is a debugger/bridge, not a
 > flasher. Flash the uDV with STM32CubeProgrammer / dfu-util as before.
 
-- [x] Robust uDV detect (`mingoros udv`): enumerate USB serial ports, rank on
+- [x] Robust uDV detect (`mingoROS udv`): enumerate USB serial ports, rank on
       VID/PID `0483:5740` + product/serial/manufacturer name hints (the
       generic-ST-CDC disambiguator). Pure ranking fn, unit-tested.
-- [x] `micro_ros_agent` manager (`mingoros agent [--dev …]`): auto-detects the
+- [x] `micro_ros_agent` manager (`mingoROS agent [--dev …]`): auto-detects the
       uDV, builds the argv, spawns/owns the bridge, surfaces the ~10 s gyro-cal
       startup + a clear error if the agent binary is absent. → full bench flow:
       `udv` → `agent --dev /dev/ttyACMx` → `state --backend ros2`.

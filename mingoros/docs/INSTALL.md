@@ -13,7 +13,7 @@ distro that ships **`libwebkit2gtk-4.1-0`** — in practice **Ubuntu 22.04 or
 newer** (or an equivalent).
 
 > ⚠️ **Ubuntu 20.04 is not supported** — it has no WebKitGTK 4.1 package. Use
-> 22.04+ for the desktop app. (The `mingoros` **CLI** still works on 20.04.)
+> 22.04+ for the desktop app. (The `mingoROS` **CLI** still works on 20.04.)
 
 ### `.deb` — Debian / Ubuntu (recommended)
 
@@ -51,11 +51,11 @@ sudo apt install libfuse2
 sudo dnf install ./ISC.MingoROS-<ver>-1.x86_64.rpm
 ```
 
-### CLI (`mingoros`)
+### CLI (`mingoROS`)
 
 ```bash
-tar -xzf mingoros-mingoros-v<ver>-x86_64-unknown-linux-gnu.tar.gz
-./mingoros --help
+tar -xzf mingoROS-mingoros-v<ver>-x86_64-unknown-linux-gnu.tar.gz
+./mingoROS --help
 ```
 
 The CLI depends only on glibc + **`libudev1`** (present on any systemd distro —

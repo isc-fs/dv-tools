@@ -1,5 +1,19 @@
 # Changelog
 
+## mingoros-v0.4.5
+
+Startup tab — **live EBS pneumatic diagram**.
+
+- The training-HTML schematic (storage tanks, D1/D2 actuator valves, AS SDC
+  relay D4, brake line, caliper) now renders on the Startup tab, driven live so
+  you can see **what actuates**: the firing valve (from the EBS-init sub-state —
+  `CheckActuator1`→D1, `CheckActuator2`→D2) glows red with its pipes; the AS SDC
+  relay opens/closes from `/debug` `SDC`; the brake line + caliper go hot when
+  EBS is engaged or an actuator fires.
+- Storage-tank pressure is **state-only** (no bar value on the ROS graph) — the
+  tanks read `OK` / `LOW` / charging rather than a fabricated number.
+- Labels carry a dark halo so they stay legible over the coloured lines/fills.
+
 ## mingoros-v0.4.4
 
 New **Startup** tab — a live, read-only guide through the car's safe power-up

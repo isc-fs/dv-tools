@@ -1,5 +1,19 @@
 # Changelog
 
+## mingoros-v0.4.3
+
+CLI command renamed **`mingoros` → `mingoROS`**.
+
+- The scriptable/headless binary is now invoked as **`mingoROS`** (help, all
+  docs, and the packaged CLI artifact updated to match).
+- Unchanged on purpose: the `mingoros-*` crate names, the `mingoros/` directory,
+  the `mingoros-v*` release tag, the DDS node name (`/mingoros/…`), and the
+  desktop app (still **ISC MingoROS**).
+
+> ⚠️ **Note:** the executable name is mixed-case. On case-insensitive
+> filesystems (macOS, Windows) `mingoROS` and `mingoros` resolve to the same
+> file; on Linux (case-sensitive) type it exactly as `mingoROS`.
+
 ## mingoros-v0.4.2
 
 Single-viewport Go / No-Go board — operator feedback: the board should fill the

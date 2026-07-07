@@ -13,7 +13,7 @@ RUN cargo build --release --features ros2 -p mingoros-cli
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends libpcap0.8 libudev1 \
     && rm -rf /var/lib/apt/lists/*
-COPY --from=build /src/target/release/mingoros /usr/local/bin/mingoros
+COPY --from=build /src/target/release/mingoROS /usr/local/bin/mingoROS
 # Match the pipeline's DDS domain by default (override with -e ROS_DOMAIN_ID=N).
 ENV ROS_DOMAIN_ID=0
-ENTRYPOINT ["mingoros"]
+ENTRYPOINT ["mingoROS"]

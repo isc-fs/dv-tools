@@ -5,7 +5,7 @@
 use serde::Serialize;
 
 /// A local network interface + one of its IPv4 addresses. The `ip` is exactly
-/// what you pass as the DDS interface bind (`mingoros --iface <ip>` / the app's
+/// what you pass as the DDS interface bind (`mingoROS --iface <ip>` / the app's
 /// interface picker).
 #[derive(Debug, Clone, Serialize)]
 pub struct NetInterface {

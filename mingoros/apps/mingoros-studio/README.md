@@ -77,9 +77,9 @@ a `mingoros-v*` tag (and `mingoros-studio-ci.yml` compiles all three per PR):
 
 | OS | Studio bundle | CLI |
 |----|---------------|-----|
-| macOS | `.dmg` (universal — Apple Silicon + Intel) | `mingoros` (aarch64, x86_64) |
-| Linux | `.deb`, `.AppImage`, `.rpm` | `mingoros` (x86_64, aarch64) |
-| Windows | `.msi` + NSIS `-setup.exe` | `mingoros.exe` (x86_64) |
+| macOS | `.dmg` (universal — Apple Silicon + Intel) | `mingoROS` (aarch64, x86_64) |
+| Linux | `.deb`, `.AppImage`, `.rpm` | `mingoROS` (x86_64, aarch64) |
+| Windows | `.msi` + NSIS `-setup.exe` | `mingoROS.exe` (x86_64) |
 
 Windows link note: the RustDDS transport pulls `pnet`, whose Windows backend
 links `Packet.lib`/`wpcap.lib`, so the Windows jobs install the **Npcap SDK**.

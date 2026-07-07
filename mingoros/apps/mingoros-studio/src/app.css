@@ -102,6 +102,14 @@ main {
 }
 
 /* ---- connection bar ---- */
+/* The header pieces (bar + update banner + safety strip) stick as one unit so
+   two separately-sticky top:0 elements can't overlap while scrolling. */
+.app-header {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    background: var(--ground-2);
+}
 .topbar {
     display: flex;
     align-items: center;
@@ -110,9 +118,6 @@ main {
     padding: 11px 22px;
     background: var(--ground-2);
     border-bottom: 1px solid var(--line);
-    position: sticky;
-    top: 0;
-    z-index: 30;
 }
 .brand {
     display: flex;
@@ -1214,9 +1219,6 @@ tr.stale .tag {
 
 /* ---- persistent safety strip (car must be on stands) ---- */
 .safety-strip {
-    position: sticky;
-    top: 0;
-    z-index: 40;
     display: flex;
     align-items: center;
     gap: 10px;

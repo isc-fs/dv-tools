@@ -4,7 +4,7 @@
     strip live ABOVE this and stay visible on every tab.
 -->
 <script lang="ts">
-    export type TabId = 'board' | 'echo' | 'details';
+    export type TabId = 'board' | 'startup' | 'echo' | 'details';
 
     interface Props {
         active: TabId;
@@ -15,6 +15,7 @@
 
     const tabs: { id: TabId; label: string }[] = [
         { id: 'board', label: 'Go / No-Go board' },
+        { id: 'startup', label: 'Startup' },
         { id: 'echo', label: 'Topic echo' },
         { id: 'details', label: 'Details' },
     ];

@@ -137,7 +137,17 @@
         letter-spacing: 0.08em;
         text-transform: uppercase;
     }
-    .pn-gval { fill: var(--ink); font-family: var(--mono); font-size: 13px; font-weight: 700; }
+    .pn-gval {
+        fill: var(--ink);
+        font-family: var(--mono);
+        font-size: 13px;
+        font-weight: 700;
+        /* dark halo so the label reads over the coloured tank fill */
+        paint-order: stroke;
+        stroke: #080c12;
+        stroke-width: 3px;
+        stroke-linejoin: round;
+    }
     .pn-gval.good { fill: var(--go); }
     .pn-gval.low { fill: var(--no); }
     .pn-pipe {
@@ -172,7 +182,17 @@
     .pn-sdcbox.closed { stroke: var(--go); filter: drop-shadow(0 0 7px rgba(55, 214, 122, 0.53)); }
     .pn-sdcc { stroke: #5b6675; stroke-width: 3; stroke-linecap: round; transition: 0.25s; }
     .pn-sdcc.closed { stroke: var(--go); }
-    .pn-sdcstate { font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 0.06em; }
+    .pn-sdcstate {
+        font-family: var(--mono);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        /* dark halo so CLOSED/OPEN reads over the red brake/pipe line behind it */
+        paint-order: stroke;
+        stroke: #080c12;
+        stroke-width: 3px;
+        stroke-linejoin: round;
+    }
     .pn-bl {
         fill: none;
         stroke: #2a3542;

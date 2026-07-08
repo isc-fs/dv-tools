@@ -1,5 +1,16 @@
 # Changelog
 
+## mingoros-v0.4.7
+
+**Linux artifacts now run on Ubuntu 22.04.**
+
+The Linux `.deb` / `.AppImage` / `.rpm` and the x86_64 CLI were being built on
+`ubuntu-latest` (now Ubuntu 24.04, glibc 2.39) — they installed on Ubuntu 22.04
+but crashed at launch with `GLIBC_2.39 not found` (glibc isn't
+forward-compatible and AppImages don't bundle it). The Linux builds are now
+pinned to **Ubuntu 22.04** (glibc 2.35), so they run on 22.04 and every newer
+distro. No app-behaviour changes.
+
 ## mingoros-v0.4.6
 
 Header + layout fixes.

@@ -2,7 +2,7 @@
 
 Download the latest artifacts from
 [**Releases**](https://github.com/isc-fs/dv-tools/releases) (tag `mingoros-v*`),
-then follow your platform below. `<ver>` is the release version, e.g. `0.4.2`.
+then follow your platform below. `<ver>` is the release version, e.g. `0.4.6`.
 
 ---
 

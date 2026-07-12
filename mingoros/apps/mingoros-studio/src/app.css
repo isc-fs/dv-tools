@@ -271,10 +271,13 @@ main {
 }
 
 main {
-    max-width: 1240px;
+    /* Fill the screen (adaptive) rather than a narrow centered column — capped
+       generously so it stays sane on ultra-wide, with side padding that grows
+       with the viewport. */
+    max-width: 1920px;
     width: 100%;
     margin: 0 auto;
-    padding: 12px 18px 14px;
+    padding: 12px clamp(18px, 2vw, 52px) 16px;
     /* fill the space under the header; scroll internally (the board tab clips
        to fit, the taller tabs scroll here) */
     flex: 1 1 auto;

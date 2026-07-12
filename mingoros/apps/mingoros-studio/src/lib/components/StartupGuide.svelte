@@ -134,11 +134,12 @@
        then the step checklist + hint sit beside the EBS self-check visual so
        the width isn't wasted. Collapses to one column when narrow. */
     .startup {
-        max-width: 1240px;
         width: 100%;
         margin: 4px auto 0;
         display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+        /* checklist bounded so its rows stay readable; the EBS diagram grows
+           into the remaining width (adaptive fill) */
+        grid-template-columns: minmax(340px, 560px) minmax(0, 1fr);
         grid-template-areas:
             'cluster cluster'
             'steps   ebs'

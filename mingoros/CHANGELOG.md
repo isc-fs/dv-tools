@@ -1,5 +1,18 @@
 # Changelog
 
+## mingoros-v0.4.8
+
+Use the full screen width across all tabs (adaptive).
+
+- The app was capped at a 1240px centered column, wasting most of the width on a
+  wide monitor. It now fills up to 1920px (fluid below that) with
+  viewport-scaled side padding, and each tab adapts:
+  - **Startup** is a two-column guide — the step checklist (bounded, readable)
+    beside the EBS self-check rail + pneumatic diagram, which grows into the
+    extra width. Collapses to one column on narrow screens.
+  - **Board**, **Details**, and **Topic echo** fill the width (wider deck, more
+    of the raw-topic table, full-width echo stream).
+
 ## mingoros-v0.4.7
 
 **Linux artifacts now run on Ubuntu 22.04.**

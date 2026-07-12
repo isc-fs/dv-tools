@@ -130,12 +130,46 @@
 </section>
 
 <style>
+    /* Two-column guide on wide screens: the AS-state headline spans the top,
+       then the step checklist + hint sit beside the EBS self-check visual so
+       the width isn't wasted. Collapses to one column when narrow. */
     .startup {
-        max-width: 760px;
+        width: 100%;
         margin: 4px auto 0;
-        display: flex;
-        flex-direction: column;
+        display: grid;
+        /* checklist bounded so its rows stay readable; the EBS diagram grows
+           into the remaining width (adaptive fill) */
+        grid-template-columns: minmax(340px, 560px) minmax(0, 1fr);
+        grid-template-areas:
+            'cluster cluster'
+            'steps   ebs'
+            'hint    ebs';
         gap: 14px;
+        align-items: start;
+    }
+    .su-cluster {
+        grid-area: cluster;
+    }
+    .su-steps {
+        grid-area: steps;
+    }
+    .su-hint {
+        grid-area: hint;
+    }
+    .su-ebs {
+        grid-area: ebs;
+        align-self: start;
+    }
+    @media (max-width: 900px) {
+        .startup {
+            max-width: 760px;
+            grid-template-columns: 1fr;
+            grid-template-areas:
+                'cluster'
+                'ebs'
+                'steps'
+                'hint';
+        }
     }
 
     /* cluster */
